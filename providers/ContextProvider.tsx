@@ -14,13 +14,14 @@ import {
   TrustWalletAdapter,
 } from "@solana/wallet-adapter-wallets";
 import { clusterApiUrl } from "@solana/web3.js";
-import React, { useMemo } from "react";
-
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import React, { useMemo, useState } from "react";
 export default function ContextProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const [queryClient] = useState(() => new QueryClient());
   const wallets = useMemo(
     () => [
       new PhantomWalletAdapter(),
@@ -38,7 +39,9 @@ export default function ContextProvider({
   return (
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider wallets={wallets} autoConnect>
-        {children}
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
         <Toaster />
       </WalletProvider>
     </ConnectionProvider>

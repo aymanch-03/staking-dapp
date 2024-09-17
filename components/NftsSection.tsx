@@ -6,6 +6,7 @@ import { ArrowRight, Info, LoaderCircle, X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { NftCard } from "./NftCard";
 import { Button } from "./ui/button";
+import { Skeleton } from "./ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
@@ -25,7 +26,7 @@ export type NftMetadata = {
 };
 
 export const NftsSection = ({ connection, publicKey }: Props) => {
-  const nfts = useAssets(publicKey);
+  const { data: nfts, isLoading: loading, isError } = useAssets(publicKey);
   const [selectedNfts, setSelectedNfts] = useState<NftMetadata[]>([]);
   const [stakedNfts, setStakedNfts] = useState<NftMetadata[]>([]);
   const [toUnstakeNfts, setToUnstakeNfts] = useState<NftMetadata[]>([]);
@@ -154,7 +155,15 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
         </div>
         <div className="grid grid-cols-1 gap-6 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           <AnimatePresence>
-            {nfts.filter((nft) => !isNftStaked(nft)).length > 0 ? (
+            {loading || isError ? (
+              <>
+                <Skeleton className="aspect-square rounded-xl bg-neutral-900/60 dark:bg-neutral-50/60" />
+                <Skeleton className="aspect-square rounded-xl bg-neutral-900/60 dark:bg-neutral-50/60" />
+                <Skeleton className="aspect-square rounded-xl bg-neutral-900/60 dark:bg-neutral-50/60" />
+                <Skeleton className="aspect-square rounded-xl bg-neutral-900/60 dark:bg-neutral-50/60" />
+                <Skeleton className="aspect-square rounded-xl bg-neutral-900/60 dark:bg-neutral-50/60" />
+              </>
+            ) : nfts && nfts.filter((nft) => !isNftStaked(nft)).length > 0 ? (
               nfts
                 .filter((nft) => !isNftStaked(nft))
                 .map((nft, index) => (
@@ -173,7 +182,7 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
                   />
                 ))
             ) : (
-              <div className="col-span-full flex flex-col items-center justify-center gap-2 text-center">
+              <div className="col-span-full flex min-h-[186px] flex-col items-center justify-center gap-2 text-center">
                 <span>No Unstaked NFTs</span>
                 <Button
                   asChild
