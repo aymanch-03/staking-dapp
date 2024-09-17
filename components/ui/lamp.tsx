@@ -14,9 +14,9 @@ export function Lamp() {
           duration: 0.8,
           ease: "easeInOut",
         }}
-        className="mt-8 bg-gradient-to-br from-slate-300 to-slate-500 bg-clip-text py-4 text-center text-2xl font-medium capitalize tracking-tight text-transparent md:text-3xl"
+        className="mt-8 bg-gradient-to-br from-slate-300 to-slate-500 bg-clip-text py-4 text-center text-2xl font-medium capitalize tracking-wide text-transparent md:text-3xl"
       >
-        Connect Your Wallet to Access the Biples Universe
+        Connect Your Wallet
       </motion.h1>
     </LampContainer>
   );

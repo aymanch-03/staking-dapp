@@ -32,7 +32,7 @@ const MainButton = forwardRef<HTMLDivElement, MainButtonProps>(
           )}
         >
           {Icon}
-          <span>{text}</span>
+          <span className="tracking-wide">{text}</span>
         </div>
       </motion.div>
     );
