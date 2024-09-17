@@ -59,32 +59,35 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
     [publicKey, connection, stakedNfts],
   );
 
-  const handleUnstaking = useCallback(async (nftsToUnstake: NftMetadata[]) => {
-    if (!publicKey || !connection) return;
+  const handleUnstaking = useCallback(
+    async (nftsToUnstake: NftMetadata[]) => {
+      if (!publicKey || !connection) return;
 
-    setIsLoading(true);
-    try {
-      await wait(1500);
-      const newToUnstakeNfts = nftsToUnstake.filter(
-        (nft) => !toUnstakeNfts.includes(nft),
-      );
+      setIsLoading(true);
+      try {
+        await wait(1500);
+        const newToUnstakeNfts = nftsToUnstake.filter(
+          (nft) => !toUnstakeNfts.includes(nft),
+        );
 
-      if (newToUnstakeNfts.length === 0) {
-        console.log("All selected NFTs are already unstaked");
-      } else {
-        setStakedNfts((prevStaked) => {
-          return [
-            ...prevStaked.filter((nft) => !newToUnstakeNfts.includes(nft)),
-          ];
-        });
-        setToUnstakeNfts([]);
+        if (newToUnstakeNfts.length === 0) {
+          console.log("All selected NFTs are already unstaked");
+        } else {
+          setStakedNfts((prevStaked) => {
+            return [
+              ...prevStaked.filter((nft) => !newToUnstakeNfts.includes(nft)),
+            ];
+          });
+          setToUnstakeNfts([]);
+        }
+      } catch (error) {
+        console.error("Error while Unstaking NFTs: ", error);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error("Error while Unstaking NFTs: ", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    },
+    [connection, publicKey, toUnstakeNfts],
+  );
 
   const handleSelectNft = useCallback(
     (

@@ -1,22 +1,7 @@
 "use client";
 import { Input } from "@/components/ui/input";
 import MainButton from "@/components/ui/primary-button";
-import { umi } from "@/lib/utils";
-import { createAccount, transferSol } from "@metaplex-foundation/mpl-toolbox";
-import {
-  createSignerFromKeypair,
-  defaultPublicKey,
-  Instruction,
-  isPublicKey,
-  lamports,
-  signerIdentity,
-  signerPayer,
-  sol,
-  transactionBuilder,
-  publicKey as UmiPublicKey,
-} from "@metaplex-foundation/umi";
-import { createSignerFromWalletAdapter } from "@metaplex-foundation/umi-signer-wallet-adapters";
-import { fromWeb3JsPublicKey } from "@metaplex-foundation/umi-web3js-adapters";
+import { isPublicKey } from "@metaplex-foundation/umi";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
   LAMPORTS_PER_SOL,
