@@ -1,5 +1,4 @@
 "use client";
-import { Toaster } from "@/components/ui/sonner";
 import {
   ConnectionProvider,
   WalletProvider,
@@ -16,6 +15,7 @@ import {
 import { clusterApiUrl } from "@solana/web3.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React, { useMemo, useState } from "react";
+import { Toaster } from "react-hot-toast";
 export default function ContextProvider({
   children,
 }: {
@@ -42,7 +42,17 @@ export default function ContextProvider({
         <QueryClientProvider client={queryClient}>
           {children}
         </QueryClientProvider>
-        <Toaster />
+        <Toaster
+          toastOptions={{
+            style: {
+              background: "rgba(0,0,0,0.5)",
+              backdropFilter: "blur(2px)",
+              border: "1px solid rgba(255,255,255,0.2)",
+              color: "rgba(255,255,255)",
+              borderRadius: "10px",
+            },
+          }}
+        />
       </WalletProvider>
     </ConnectionProvider>
   );
