@@ -1,3 +1,4 @@
+import { TABS } from "@/constants";
 import { useAssets } from "@/hooks/useAssets";
 import { wait } from "@/lib/utils";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -8,18 +9,11 @@ import {
   SystemProgram,
   Transaction,
 } from "@solana/web3.js";
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, Info, LoaderCircle, X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import { NftCard } from "./NftCard";
-import { Button } from "./ui/button";
-import { Skeleton } from "./ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./ui/tooltip";
+import OwnedNfts from "./OwnedNfts";
+import StakedNfts from "./StakedNfts";
+import { Tab } from "./ui/tabs";
+
 type Props = {
   connection: Connection;
   publicKey: PublicKey;
@@ -33,6 +27,7 @@ export type NftMetadata = {
 };
 
 export const NftsSection = ({ connection, publicKey }: Props) => {
+  const [selected, setSelected] = useState<string>(TABS[0]);
   const { sendTransaction } = useWallet();
   const { data: nfts, isLoading: loading, isError } = useAssets(publicKey);
   const [selectedNfts, setSelectedNfts] = useState<NftMetadata[]>([]);
@@ -101,8 +96,11 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
         throw new Error("Transaction failed");
       }
 
+      console.log("Transaction successful: ", signature);
+      // TODO: Implement react-hot-toast
       setStakedNfts((prevStaked) => [...prevStaked, ...selectedNfts]);
       setSelectedNfts([]);
+      setSelected(TABS[1]);
     } catch (error) {
       console.error("Error while staking NFTs: ", error);
     } finally {
@@ -202,210 +200,42 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
 
   return (
     <>
-      <h1 className="mb-10 text-4xl">Staking</h1>
-      <section className="my-6 space-y-5">
-        <div className="flex h-10 items-center justify-between">
-          <p className="text-2xl">Unstaked NFTs</p>
-          <AnimatePresence>
-            {selectedNfts.length && selectedNfts.length > 0 ? (
-              <motion.div
-                initial={{ y: -10, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: -10, opacity: 0 }}
-                className="flex items-center justify-end gap-4"
-              >
-                <Button
-                  variant={"expandIcon"}
-                  Icon={X}
-                  iconPlacement="right"
-                  onClick={() => {
-                    console.log("Reset Done");
-                    setSelectedNfts([]);
-                  }}
-                  className="border bg-black/80 hover:bg-black"
-                  disabled={!selectedNfts.length && selectedNfts.length <= 0}
-                >
-                  Reset Selection
-                </Button>
-                <Button
-                  variant={"expandIcon"}
-                  Icon={ArrowRight}
-                  iconPlacement="right"
-                  className="border bg-primary/45 hover:bg-primary/50"
-                  disabled={
-                    isLoading ||
-                    !selectedNfts.length ||
-                    selectedNfts.length <= 0
-                  }
-                  onClick={handleStaking}
-                >
-                  Stake NFTs ({selectedNfts.length})
-                  {isLoading && (
-                    <LoaderCircle className="ml-2 size-4 animate-spin" />
-                  )}
-                </Button>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-        </div>
-        <div className="grid grid-cols-1 gap-6 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          <AnimatePresence>
-            {loading || isError ? (
-              <>
-                <Skeleton className="aspect-square rounded-xl bg-neutral-900/60 dark:bg-neutral-50/60" />
-                <Skeleton className="aspect-square rounded-xl bg-neutral-900/60 dark:bg-neutral-50/60" />
-                <Skeleton className="aspect-square rounded-xl bg-neutral-900/60 dark:bg-neutral-50/60" />
-                <Skeleton className="aspect-square rounded-xl bg-neutral-900/60 dark:bg-neutral-50/60" />
-                <Skeleton className="aspect-square rounded-xl bg-neutral-900/60 dark:bg-neutral-50/60" />
-              </>
-            ) : nfts && nfts.filter((nft) => !isNftStaked(nft)).length > 0 ? (
-              nfts
-                .filter((nft) => !isNftStaked(nft))
-                .map((nft, index) => (
-                  <NftCard
-                    key={nft.name}
-                    nft={nft}
-                    index={index + 1}
-                    selectedNfts={selectedNfts}
-                    handleSelectNft={(selectedNft) =>
-                      handleSelectNft(selectedNft, setSelectedNfts)
-                    }
-                  />
-                ))
-            ) : (
-              <div className="col-span-full flex min-h-[186px] flex-col items-center justify-center gap-2 text-center">
-                <span>No Unstaked NFTs</span>
-                <Button
-                  asChild
-                  variant={"expandIcon"}
-                  Icon={ArrowRight}
-                  iconPlacement="right"
-                  className="rounded-full border border-none bg-primary/45 hover:bg-primary/50"
-                >
-                  <a
-                    href="https://magiceden.io"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Buy NFTs on MagicEden
-                  </a>
-                </Button>
-              </div>
-            )}
-          </AnimatePresence>
+      <section className="flex flex-col items-center justify-center gap-4">
+        <h1 className="text-center text-4xl">Staking</h1>
+        <div className="mb-8 flex flex-wrap items-center gap-5">
+          {TABS.map((tab) => (
+            <Tab
+              text={tab}
+              selected={selected === tab}
+              setSelected={setSelected}
+              key={tab}
+            />
+          ))}
         </div>
       </section>
-      <section className="my-6 space-y-5">
-        <div className="flex h-10 items-center justify-between">
-          <div className="flex items-center gap-2 text-2xl">
-            <span>Staked NFTs</span>
-            <TooltipProvider>
-              <Tooltip delayDuration={250}>
-                <TooltipTrigger asChild>
-                  <Info className="size-5 cursor-pointer pt-1 text-white" />
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-white text-black">
-                  <p>Staked NFTs cannot be sold or transferred</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          {toUnstakeNfts.length && toUnstakeNfts.length > 0 ? (
-            <motion.div
-              initial={{ y: -10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -10, opacity: 0 }}
-              className="flex items-center justify-end gap-4"
-            >
-              <Button
-                variant={"expandIcon"}
-                Icon={X}
-                iconPlacement="right"
-                onClick={() => {
-                  console.log("Reset Done");
-                  setToUnstakeNfts([]);
-                }}
-                className="border bg-black/80 hover:bg-black"
-                disabled={!toUnstakeNfts.length || toUnstakeNfts.length <= 0}
-              >
-                Reset Selection
-              </Button>
-              <Button
-                variant={"expandIcon"}
-                Icon={ArrowRight}
-                iconPlacement="right"
-                className="border bg-primary/45 hover:bg-primary/50"
-                onClick={handleUnstaking}
-                disabled={
-                  isLoading ||
-                  !toUnstakeNfts.length ||
-                  toUnstakeNfts.length <= 0
-                }
-              >
-                Unstake NFTs ({toUnstakeNfts.length})
-                {isLoading && (
-                  <LoaderCircle className="ml-2 size-4 animate-spin" />
-                )}
-              </Button>
-            </motion.div>
-          ) : null}
-        </div>
-
-        {stakedNfts.length && stakedNfts.length > 0 ? (
-          <div className="grid grid-cols-1 gap-6 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {stakedNfts.map((nft, index) => (
-              <NftCard
-                key={nft.name}
-                nft={nft}
-                index={index + 1}
-                selectedNfts={toUnstakeNfts}
-                handleSelectNft={(selectedNft) =>
-                  handleSelectNft(selectedNft, setToUnstakeNfts)
-                }
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="w-full text-center">No staked NFTs at the moment</p>
-        )}
-      </section>
+      {selected.toLowerCase() === "owned nfts" ? (
+        <OwnedNfts
+          allNfts={nfts ?? []}
+          selectedNfts={selectedNfts}
+          setSelectedNfts={setSelectedNfts}
+          isLoading={isLoading}
+          handleStaking={handleStaking}
+          fetchLoading={loading}
+          isError={isError}
+          isNftStaked={isNftStaked}
+          handleSelectNft={handleSelectNft}
+        />
+      ) : selected.toLowerCase() === "staked nfts" ? (
+        <StakedNfts
+          isLoading={isLoading}
+          toUnstakeNfts={toUnstakeNfts}
+          stakedNfts={stakedNfts}
+          setToUnstakeNfts={setToUnstakeNfts}
+          handleUnstaking={handleUnstaking}
+          handleSelectNft={handleSelectNft}
+          setSelectedTab={setSelected}
+        />
+      ) : null}
     </>
   );
 };
-
-
-// if (newToUnstakeNfts.length === 0) {
-//   console.log("All selected NFTs are already unstaked");
-//   return;
-// }
-// const amountLamports = newToUnstakeNfts.length * 0.02 * LAMPORTS_PER_SOL;
-// const recipientPublicKey = new PublicKey(
-//   "6UuP65JY2DYUVz3muVnELjo3Nfn76Rr5h4HvC8PeTpt8",
-// );
-
-// const transaction = new Transaction().add(
-//   SystemProgram.transfer({
-//     fromPubkey: publicKey,
-//     toPubkey: recipientPublicKey,
-//     lamports: amountLamports,
-//   }),
-// );
-
-// const {
-//   context: { slot: minContextSlot },
-//   value: { blockhash, lastValidBlockHeight },
-// } = await connection.getLatestBlockhashAndContext();
-
-// const signature = await sendTransaction(transaction, connection, {
-//   minContextSlot,
-// });
-
-// const confirmation = await connection.confirmTransaction({
-//   blockhash,
-//   lastValidBlockHeight,
-//   signature,
-// });
-
-// if (confirmation.value.err) {
-//   throw new Error("Transaction failed");
-// }

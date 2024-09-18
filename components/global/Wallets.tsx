@@ -4,6 +4,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { toast } from "sonner";
 
 import MainButton from "@/components/ui/primary-button";
@@ -181,6 +182,10 @@ const WalletsModal = () => {
         />
       </CredenzaTrigger>
       <CredenzaContent className="flex max-h-[370px] flex-col justify-between gap-0 border-primary/20 bg-[#222]/20 text-white backdrop-blur-lg md:aspect-square md:max-w-[370px]">
+        <VisuallyHidden>
+          <CredenzaTitle>Connection Modal</CredenzaTitle>
+          <CredenzaDescription>Connection Modal</CredenzaDescription>
+        </VisuallyHidden>
         <CredenzaHeader className="w-full !text-center text-xl">
           {wallet?.adapter.name}
         </CredenzaHeader>
