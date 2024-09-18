@@ -10,6 +10,7 @@ import {
   Transaction,
 } from "@solana/web3.js";
 import { useCallback, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import OwnedNfts from "./OwnedNfts";
 import StakedNfts from "./StakedNfts";
 import { Tab } from "./ui/tabs";
@@ -86,22 +87,31 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
         minContextSlot,
       });
 
-      const confirmation = await connection.confirmTransaction({
-        blockhash,
-        lastValidBlockHeight,
-        signature,
-      });
+      const confirmation = await toast.promise(
+        connection.confirmTransaction({
+          blockhash,
+          lastValidBlockHeight,
+          signature,
+        }),
+        {
+          loading: "Processing your transaction...",
+          success: <b>Transaction confirmed successfully!</b>,
+          error: <b>Transaction failed. Please try again.</b>,
+        },
+      );
 
       if (confirmation.value.err) {
         throw new Error("Transaction failed");
       }
 
       console.log("Transaction successful: ", signature);
-      // TODO: Implement react-hot-toast
+
       setStakedNfts((prevStaked) => [...prevStaked, ...selectedNfts]);
       setSelectedNfts([]);
       setSelected(TABS[1]);
     } catch (error) {
+      const message = "Unable to complete action. Please retry.";
+      toast.error(message);
       console.error("Error while staking NFTs: ", error);
     } finally {
       setIsLoading(false);
@@ -159,11 +169,18 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
         minContextSlot,
       });
 
-      const confirmation = await connection.confirmTransaction({
-        blockhash,
-        lastValidBlockHeight,
-        signature,
-      });
+      const confirmation = await toast.promise(
+        connection.confirmTransaction({
+          blockhash,
+          lastValidBlockHeight,
+          signature,
+        }),
+        {
+          loading: "Processing your transaction...",
+          success: <b>Transaction confirmed successfully!</b>,
+          error: <b>Transaction failed. Please try again.</b>,
+        },
+      );
 
       if (confirmation.value.err) {
         throw new Error("Transaction failed");
@@ -174,6 +191,8 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
       });
       setToUnstakeNfts([]);
     } catch (error) {
+      const message = "Unable to complete action. Please retry.";
+      toast.error(message);
       console.error("Error while unstaking NFTs: ", error);
     } finally {
       setIsLoading(false);
