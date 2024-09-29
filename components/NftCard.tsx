@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
+import { NftMetadata } from "@/types";
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
-import React from "react";
-import { NftMetadata } from "./NftsSection";
+
 
 type Props = {
   nft: NftMetadata;

@@ -1,5 +1,5 @@
-import { NftMetadata } from "@/components/NftsSection";
 import { umi } from "@/lib/utils";
+import { NftMetadata } from "@/types";
 import { fetchAllDigitalAssetWithTokenByOwner } from "@metaplex-foundation/mpl-token-metadata";
 import { fromWeb3JsPublicKey } from "@metaplex-foundation/umi-web3js-adapters";
 import { PublicKey } from "@solana/web3.js";
@@ -17,10 +17,11 @@ const fetchNfts = async (publicKey: PublicKey | undefined): Promise<NftMetadata[
         assets.map(async (asset) => {
             const metadata = await fetch(asset.metadata.uri).then((res) => res.json());
             return {
+                mint: asset.publicKey.toString(),
                 name: asset.metadata.name,
                 symbol: asset.metadata.symbol,
                 uri: asset.metadata.uri,
-                image: metadata.image,
+                image: metadata.image as string,
             };
         })
     );

@@ -1,3 +1,4 @@
+import { NftMetadata } from "@/types";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowRight,
@@ -8,7 +9,6 @@ import {
 } from "lucide-react";
 import React from "react";
 import { NftCard } from "./NftCard";
-import { NftMetadata } from "./NftsSection";
 import { Button } from "./ui/button";
 import { Skeleton } from "./ui/skeleton";
 import {
@@ -76,7 +76,10 @@ const OwnedNfts = ({
                 iconPlacement="right"
                 onClick={() => setSelectedNfts([])}
                 className="border bg-black/80 hover:bg-black"
-                disabled={!selectedNfts.length && selectedNfts.length <= 0}
+                disabled={
+                  isLoading ||
+                  (!selectedNfts.length && selectedNfts.length <= 0)
+                }
               >
                 Reset Selection
               </Button>

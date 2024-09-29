@@ -1,15 +1,23 @@
 import { TABS } from "@/constants";
 import { useAssets } from "@/hooks/useAssets";
-import { wait } from "@/lib/utils";
+import { explorerUrl } from "@/lib/helpers";
+import { authorityKeypair, wait } from "@/lib/utils";
+import { NftMetadata } from "@/types";
+import {
+  createAssociatedTokenAccountInstruction,
+  createFreezeAccountInstruction,
+  createThawAccountInstruction,
+  getAccount,
+  getAssociatedTokenAddress,
+} from "@solana/spl-token";
 import { useWallet } from "@solana/wallet-adapter-react";
 import {
   Connection,
-  LAMPORTS_PER_SOL,
   PublicKey,
-  SystemProgram,
-  Transaction,
+  TransactionMessage,
+  VersionedTransaction,
 } from "@solana/web3.js";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import OwnedNfts from "./OwnedNfts";
 import StakedNfts from "./StakedNfts";
@@ -17,27 +25,93 @@ import { Tab } from "./ui/tabs";
 
 type Props = {
   connection: Connection;
-  publicKey: PublicKey;
+  ownerPublicKey: PublicKey;
 };
 
-export type NftMetadata = {
-  name: string;
-  symbol: string;
-  uri: string;
-  image: string;
-};
-
-export const NftsSection = ({ connection, publicKey }: Props) => {
+export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
   const [selected, setSelected] = useState<string>(TABS[0]);
   const { sendTransaction } = useWallet();
-  const { data: nfts, isLoading: loading, isError } = useAssets(publicKey);
+  const { data: nfts, isLoading: loading, isError } = useAssets(ownerPublicKey);
   const [selectedNfts, setSelectedNfts] = useState<NftMetadata[]>([]);
   const [stakedNfts, setStakedNfts] = useState<NftMetadata[]>([]);
   const [toUnstakeNfts, setToUnstakeNfts] = useState<NftMetadata[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
+  useEffect(() => {
+    const fetchAccounts = async () => {
+      if (nfts) {
+        for (const nft of nfts) {
+          const mintPubKey = new PublicKey(nft.mint);
+          const ata = await getAssociatedTokenAddress(
+            mintPubKey,
+            ownerPublicKey,
+          );
+
+          if (ata) {
+            const { isFrozen } = await getAccount(connection, ata);
+
+            if (isFrozen) {
+              setStakedNfts((prev) => {
+                if (!prev.some((stakedNft) => stakedNft.mint === nft.mint)) {
+                  return [...prev, nft];
+                }
+                return prev;
+              });
+              console.log(`is ${nft.name} staked? `, isFrozen);
+            }
+          }
+        }
+      }
+    };
+
+    fetchAccounts();
+  }, [connection, nfts, ownerPublicKey]);
+
   const handleStaking = useCallback(async () => {
-    if (!publicKey || !connection) {
+    const buildStakeAndFreezeTransaction = async (
+      selectedNfts: NftMetadata[],
+    ): Promise<VersionedTransaction> => {
+      const instructions = [];
+      for (const nft of selectedNfts) {
+        const mintPubKey = new PublicKey(nft.mint);
+        const associatedTokenAccount = await getAssociatedTokenAddress(
+          mintPubKey,
+          ownerPublicKey,
+        );
+        const accountInfo = await getAccount(
+          connection,
+          associatedTokenAccount,
+        );
+
+        if (!accountInfo) {
+          const ix = createAssociatedTokenAccountInstruction(
+            ownerPublicKey,
+            associatedTokenAccount,
+            ownerPublicKey,
+            mintPubKey,
+          );
+          instructions.push(ix);
+        }
+        const freezeIx = createFreezeAccountInstruction(
+          associatedTokenAccount,
+          new PublicKey(nft.mint),
+          authorityKeypair.publicKey,
+          [],
+        );
+        instructions.push(freezeIx);
+      }
+
+      const latestBlockhash = await connection.getLatestBlockhash();
+      const messageV0 = new TransactionMessage({
+        payerKey: ownerPublicKey,
+        recentBlockhash: latestBlockhash.blockhash,
+        instructions,
+      }).compileToV0Message();
+
+      return new VersionedTransaction(messageV0);
+    };
+
+    if (!ownerPublicKey || !connection) {
       console.error("Missing public key or connection");
       return;
     }
@@ -48,51 +122,40 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
     }
 
     setIsLoading(true);
+
     try {
       await wait(1500);
-      console.log("Processing the transaction...");
 
-      const amountLamports = selectedNfts.length * 0.02 * LAMPORTS_PER_SOL;
-      if (isNaN(amountLamports) || amountLamports <= 0) {
-        throw new Error("Invalid amount of lamports calculated");
+      if (!authorityKeypair) {
+        throw new Error("No authority key found");
       }
 
-      const recipientPublicKey = new PublicKey(
-        "6UuP65JY2DYUVz3muVnELjo3Nfn76Rr5h4HvC8PeTpt8",
-      );
+      console.log("Building transaction...");
+      const transaction = await buildStakeAndFreezeTransaction(selectedNfts);
 
-      const transaction = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: recipientPublicKey,
-          lamports: amountLamports,
-        }),
-      );
-
-      const latestBlockhash = await connection.getLatestBlockhashAndContext();
-      if (
-        !latestBlockhash ||
-        !latestBlockhash.value ||
-        !latestBlockhash.context
-      ) {
-        throw new Error("Failed to fetch latest blockhash and context");
+      const simulationResult =
+        await connection.simulateTransaction(transaction);
+      if (simulationResult.value.err) {
+        throw new Error("Transaction simulation failed");
       }
 
-      const {
-        context: { slot: minContextSlot },
-        value: { blockhash, lastValidBlockHeight },
-      } = latestBlockhash;
-
+      console.log("Sending transaction...");
       const signature = await sendTransaction(transaction, connection, {
-        minContextSlot,
+        signers: [authorityKeypair],
       });
 
+      console.log("Awaiting transaction confirmation...");
+      const latestBlockhash = await connection.getLatestBlockhash("finalized");
+
       const confirmation = await toast.promise(
-        connection.confirmTransaction({
-          blockhash,
-          lastValidBlockHeight,
-          signature,
-        }),
+        connection.confirmTransaction(
+          {
+            blockhash: latestBlockhash.blockhash,
+            lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+            signature,
+          },
+          "confirmed",
+        ),
         {
           loading: "Processing your transaction...",
           success: <b>Transaction confirmed successfully!</b>,
@@ -101,25 +164,66 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
       );
 
       if (confirmation.value.err) {
-        throw new Error("Transaction failed");
+        throw new Error("Transaction confirmation failed");
       }
 
-      console.log("Transaction successful: ", signature);
+      console.log("Transaction successful: ", explorerUrl(signature));
 
       setStakedNfts((prevStaked) => [...prevStaked, ...selectedNfts]);
       setSelectedNfts([]);
       setSelected(TABS[1]);
     } catch (error) {
-      const message = "Unable to complete action. Please retry.";
-      toast.error(message);
-      console.error("Error while staking NFTs: ", error);
+      console.error("Error during staking:", error);
+      toast.error("Unable to complete action. Please retry.");
     } finally {
       setIsLoading(false);
     }
-  }, [publicKey, connection, selectedNfts, sendTransaction]);
+  }, [ownerPublicKey, connection, selectedNfts, sendTransaction]);
 
   const handleUnstaking = useCallback(async () => {
-    if (!publicKey || !connection) {
+    const buildUnstakeAndThawTransaction = async (
+      selectedNfts: NftMetadata[],
+    ): Promise<VersionedTransaction> => {
+      const instructions = [];
+      for (const nft of selectedNfts) {
+        const mintPubKey = new PublicKey(nft.mint);
+        const associatedTokenAccount = await getAssociatedTokenAddress(
+          mintPubKey,
+          ownerPublicKey,
+        );
+        const accountInfo = await getAccount(
+          connection,
+          associatedTokenAccount,
+        );
+
+        if (!accountInfo) {
+          const ix = createAssociatedTokenAccountInstruction(
+            ownerPublicKey,
+            associatedTokenAccount,
+            ownerPublicKey,
+            mintPubKey,
+          );
+          instructions.push(ix);
+        }
+        const freezeIx = createThawAccountInstruction(
+          associatedTokenAccount,
+          new PublicKey(nft.mint),
+          authorityKeypair.publicKey,
+          [],
+        );
+        instructions.push(freezeIx);
+      }
+
+      const latestBlockhash = await connection.getLatestBlockhash();
+      const messageV0 = new TransactionMessage({
+        payerKey: ownerPublicKey,
+        recentBlockhash: latestBlockhash.blockhash,
+        instructions,
+      }).compileToV0Message();
+
+      return new VersionedTransaction(messageV0);
+    };
+    if (!ownerPublicKey || !connection) {
       console.error("Missing public key or connection");
       return;
     }
@@ -132,49 +236,37 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
     setIsLoading(true);
     try {
       await wait(1500);
-      console.log("Processing the unstaking transaction...");
 
-      const amountLamports = toUnstakeNfts.length * 0.02 * LAMPORTS_PER_SOL;
-      if (isNaN(amountLamports) || amountLamports <= 0) {
-        throw new Error("Invalid amount of lamports calculated for unstaking");
+      if (!authorityKeypair) {
+        throw new Error("No authority key found");
       }
 
-      const recipientPublicKey = new PublicKey(
-        "6UuP65JY2DYUVz3muVnELjo3Nfn76Rr5h4HvC8PeTpt8",
-      );
+      console.log("Building transaction...");
+      const transaction = await buildUnstakeAndThawTransaction(toUnstakeNfts);
 
-      const transaction = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: recipientPublicKey,
-          lamports: amountLamports,
-        }),
-      );
-
-      const latestBlockhash = await connection.getLatestBlockhashAndContext();
-      if (
-        !latestBlockhash ||
-        !latestBlockhash.value ||
-        !latestBlockhash.context
-      ) {
-        throw new Error("Failed to fetch latest blockhash and context");
+      const simulationResult =
+        await connection.simulateTransaction(transaction);
+      if (simulationResult.value.err) {
+        throw new Error("Transaction simulation failed");
       }
 
-      const {
-        context: { slot: minContextSlot },
-        value: { blockhash, lastValidBlockHeight },
-      } = latestBlockhash;
-
+      console.log("Sending transaction...");
       const signature = await sendTransaction(transaction, connection, {
-        minContextSlot,
+        signers: [authorityKeypair],
       });
 
+      console.log("Awaiting transaction confirmation...");
+      const latestBlockhash = await connection.getLatestBlockhash("finalized");
+
       const confirmation = await toast.promise(
-        connection.confirmTransaction({
-          blockhash,
-          lastValidBlockHeight,
-          signature,
-        }),
+        connection.confirmTransaction(
+          {
+            blockhash: latestBlockhash.blockhash,
+            lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+            signature,
+          },
+          "confirmed",
+        ),
         {
           loading: "Processing your transaction...",
           success: <b>Transaction confirmed successfully!</b>,
@@ -183,8 +275,10 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
       );
 
       if (confirmation.value.err) {
-        throw new Error("Transaction failed");
+        throw new Error("Transaction confirmation failed");
       }
+
+      console.log("Transaction successful: ", explorerUrl(signature));
 
       setStakedNfts((prevStaked) => {
         return prevStaked.filter((nft) => !toUnstakeNfts.includes(nft));
@@ -197,7 +291,7 @@ export const NftsSection = ({ connection, publicKey }: Props) => {
     } finally {
       setIsLoading(false);
     }
-  }, [connection, publicKey, sendTransaction, toUnstakeNfts]);
+  }, [connection, ownerPublicKey, sendTransaction, toUnstakeNfts]);
 
   const handleSelectNft = useCallback(
     (

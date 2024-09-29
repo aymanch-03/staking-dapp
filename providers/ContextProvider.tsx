@@ -34,13 +34,16 @@ export default function ContextProvider({
     ],
     [],
   );
-  const endpoint = useMemo(() => clusterApiUrl("devnet"), []);
+  const endpoint = useMemo(
+    () => process.env.NEXT_PUBLIC_RPC ?? clusterApiUrl("devnet"),
+    [],
+  );
 
   return (
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider wallets={wallets} autoConnect>
         <QueryClientProvider client={queryClient}>
-          {children}
+          <div vaul-drawer-wrapper="">{children}</div>
         </QueryClientProvider>
         <Toaster
           toastOptions={{

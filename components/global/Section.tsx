@@ -10,7 +10,7 @@ type Props = {
 const Section = ({ connection, publicKey }: Props) => {
   return connection && publicKey ? (
     <div className="container py-10">
-      <NftsSection connection={connection} publicKey={publicKey} />
+      <NftsSection connection={connection} ownerPublicKey={publicKey} />
     </div>
   ) : (
     <Lamp />
