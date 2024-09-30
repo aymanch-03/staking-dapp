@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import { NftMetadata } from "@/types";
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
-
+import Image from "next/image";
 
 type Props = {
   nft: NftMetadata;
@@ -29,8 +29,15 @@ export const NftCard = ({
         "group relative aspect-square cursor-pointer overflow-hidden rounded-xl bg-cover bg-center bg-no-repeat shadow-lg outline outline-primary/10 transition-all ease-linear hover:-translate-y-1",
         isSelected && "outline-2 outline-primary",
       )}
-      style={{ backgroundImage: `url(${nft.image})` }}
     >
+      <Image
+        src={nft.image}
+        alt={nft.name}
+        fill
+        sizes="100%"
+        className="object-cover"
+        priority
+      />
       <div className="absolute bottom-0 flex h-1/2 w-full flex-col justify-end bg-gradient-to-t from-black/80 to-transparent p-4">
         <h3 className="text-xl font-semibold text-gray-100">{nft.name}</h3>
         <p className="text-sm text-gray-400">{nft.symbol}</p>
