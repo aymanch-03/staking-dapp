@@ -1,5 +1,5 @@
 import { TABS } from "@/constants";
-import { NftMetadata } from "@/types";
+import { Nft } from "@prisma/client";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -20,14 +20,14 @@ import {
 } from "./ui/tooltip";
 
 type Props = {
-  toUnstakeNfts: NftMetadata[];
-  stakedNfts: NftMetadata[];
-  setToUnstakeNfts: React.Dispatch<React.SetStateAction<NftMetadata[]>>;
+  toUnstakeNfts: Nft[];
+  stakedNfts: Nft[];
+  setToUnstakeNfts: React.Dispatch<React.SetStateAction<Nft[]>>;
   isLoading: boolean;
   handleUnstaking: () => void;
   handleSelectNft: (
-    nft: NftMetadata,
-    setter: React.Dispatch<React.SetStateAction<NftMetadata[]>>,
+    nft: Nft,
+    setter: React.Dispatch<React.SetStateAction<Nft[]>>,
   ) => void;
   setSelectedTab: React.Dispatch<React.SetStateAction<string>>;
 };
@@ -99,6 +99,7 @@ const StakedNfts = ({
         <div className="grid grid-cols-1 gap-6 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {stakedNfts.map((nft, index) => (
             <NftCard
+              isLoading={isLoading}
               key={nft.name}
               nft={nft}
               index={index + 1}

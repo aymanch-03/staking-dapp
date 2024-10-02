@@ -5,7 +5,6 @@ const Header = () => {
   return (
     <div className="container flex h-20 w-full items-center justify-between">
       <div className="w-32">
-        {/* <Image src={biplesLogo} alt="Biples" className="select-none" /> */}
         <span className="font-semibold">LOGO</span>
       </div>
       <div className="flex items-stretch gap-2">

@@ -4,17 +4,17 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
-import { toast } from "sonner";
-
 import MainButton from "@/components/ui/primary-button";
+import { useAuthUser } from "@/hooks/useAuthUser";
 import { useGetBalance } from "@/hooks/useGetBalance";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { WalletName } from "@solana/wallet-adapter-base";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { BadgeInfo, Check, Copy } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "../ui/button";
 import {
   Credenza,
@@ -26,11 +26,12 @@ import {
 } from "../ui/modal";
 
 const WalletsModal = () => {
+  const { select, publicKey, disconnect, connect, wallet, wallets } =
+    useWallet();
+  const { data: authUser } = useAuthUser(publicKey?.toBase58() ?? null);
   const [openConnectModal, setOpenConnectModal] = useState(false);
   const [openWalletModal, setOpenWalletModal] = useState(false);
   const { connection } = useConnection();
-  const { select, publicKey, disconnect, connect, wallet, wallets } =
-    useWallet();
   const balance = useGetBalance(publicKey, connection);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -85,7 +86,7 @@ const WalletsModal = () => {
     () => wallets?.filter((wallet) => wallet.readyState !== "Installed"),
     [wallets],
   );
-  return !publicKey ? (
+  return !publicKey && !authUser ? (
     <Credenza open={openConnectModal} onOpenChange={setOpenConnectModal}>
       <CredenzaTrigger asChild>
         <MainButton text="Connect Wallet" />
