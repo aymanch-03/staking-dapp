@@ -50,7 +50,7 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
       return newUser;
     };
     register();
-  }, [authUser]);
+  }, [authUser, nfts]);
 
   const handleStaking = useCallback(async () => {
     const buildStakeAndFreezeTransaction = async (
