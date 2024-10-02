@@ -1,13 +1,14 @@
 import { cn } from "@/lib/utils";
-import { NftMetadata } from "@/types";
+import { Nft } from "@prisma/client";
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 import Image from "next/image";
 
 type Props = {
-  nft: NftMetadata;
-  selectedNfts: NftMetadata[];
-  handleSelectNft: (nft: NftMetadata) => void;
+  nft: Nft;
+  selectedNfts: Nft[];
+  handleSelectNft: (nft: Nft) => void;
+  isLoading: boolean;
   index?: number;
 };
 
@@ -16,6 +17,7 @@ export const NftCard = ({
   handleSelectNft,
   selectedNfts,
   index,
+  isLoading,
 }: Props) => {
   const isSelected = selectedNfts.includes(nft);
   return (
@@ -23,11 +25,15 @@ export const NftCard = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ type: "spring", delay: (index ?? 1) * 0.1, duration: 0.3 }}
-      onClick={() => handleSelectNft(nft)}
-      key={nft.name}
+      onClick={() => {
+        if (isLoading) return;
+        handleSelectNft(nft);
+      }}
+      key={index}
       className={cn(
         "group relative aspect-square cursor-pointer overflow-hidden rounded-xl bg-cover bg-center bg-no-repeat shadow-lg outline outline-primary/10 transition-all ease-linear hover:-translate-y-1",
         isSelected && "outline-2 outline-primary",
+        isLoading && "cursor-not-allowed",
       )}
     >
       <Image

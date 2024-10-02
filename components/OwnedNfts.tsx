@@ -1,4 +1,4 @@
-import { NftMetadata } from "@/types";
+import { Nft } from "@prisma/client";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowRight,
@@ -19,29 +19,27 @@ import {
 } from "./ui/tooltip";
 
 type Props = {
-  allNfts: NftMetadata[];
-  selectedNfts: NftMetadata[];
-  setSelectedNfts: React.Dispatch<React.SetStateAction<NftMetadata[]>>;
+  unstakedNfts: Nft[];
+  selectedNfts: Nft[];
+  setSelectedNfts: React.Dispatch<React.SetStateAction<Nft[]>>;
   isLoading: boolean;
   handleStaking: () => void;
   fetchLoading: boolean;
   isError: boolean;
-  isNftStaked: (nft: NftMetadata) => boolean;
   handleSelectNft: (
-    nft: NftMetadata,
-    setter: React.Dispatch<React.SetStateAction<NftMetadata[]>>,
+    nft: Nft,
+    setter: React.Dispatch<React.SetStateAction<Nft[]>>,
   ) => void;
 };
 
 const OwnedNfts = ({
-  allNfts,
+  unstakedNfts,
   selectedNfts,
   setSelectedNfts,
   isLoading,
   handleStaking,
   fetchLoading,
   isError,
-  isNftStaked,
   handleSelectNft,
 }: Props) => {
   return (
@@ -112,27 +110,25 @@ const OwnedNfts = ({
               <Skeleton className="aspect-square rounded-xl bg-neutral-900/60 dark:bg-neutral-50/60" />
               <Skeleton className="aspect-square rounded-xl bg-neutral-900/60 dark:bg-neutral-50/60" />
             </>
-          ) : allNfts &&
-            allNfts.filter((nft) => !isNftStaked(nft)).length > 0 ? (
-            allNfts
-              .filter((nft) => !isNftStaked(nft))
-              .map((nft, index) => (
-                <NftCard
-                  key={nft.name}
-                  nft={nft}
-                  index={index + 1}
-                  selectedNfts={selectedNfts}
-                  handleSelectNft={(selectedNft) =>
-                    handleSelectNft(selectedNft, setSelectedNfts)
-                  }
-                />
-              ))
+          ) : unstakedNfts && unstakedNfts.length > 0 ? (
+            unstakedNfts.map((nft, index) => (
+              <NftCard
+                key={nft.name}
+                nft={nft}
+                index={index + 1}
+                selectedNfts={selectedNfts}
+                handleSelectNft={(selectedNft) =>
+                  handleSelectNft(selectedNft, setSelectedNfts)
+                }
+                isLoading={isLoading}
+              />
+            ))
           ) : (
             <div className="col-span-full flex min-h-[186px] flex-col items-center justify-center gap-3 text-center">
               <GalleryHorizontal strokeWidth={1} className="size-16" />
 
               <div className="flex items-center gap-2">
-                <span>You {"don't"} have any NFTs in your collection</span>
+                <span>You {"don't"} have any NFTs of our collection</span>
                 <TooltipProvider>
                   <Tooltip delayDuration={250}>
                     <TooltipTrigger asChild>

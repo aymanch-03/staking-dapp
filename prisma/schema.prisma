@@ -1,0 +1,33 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+model User {
+  publicKey    String   @id
+  nfts         Nft[]    @relation("UserNfts") // Combined field for all NFTs
+  tokenBalance Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Nft {
+  mint              String   @id
+  name              String
+  symbol            String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  uri               String
+  image             String
+  owner             User     @relation("UserNfts", fields: [ownerPublicKey], references: [publicKey]) // Single owner relation
+  ownerPublicKey    String
+  isStaked          Boolean  @default(false) // Flag to indicate if the NFT is staked
+}
