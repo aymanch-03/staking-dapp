@@ -1,117 +1,36 @@
 "use server"
+import { fetchMetadata } from '@/lib/helpers';
 import prisma from '@/lib/prisma';
-import { NftMetadata } from '@/types';
-import { Nft, User } from '@prisma/client';
+import { Nft } from '@prisma/client';
+import { PublicKey } from '@solana/web3.js';
 
-export const registerUser = async (publicKeyString: string, nfts?: NftMetadata[]) => {
-    if (!publicKeyString) {
-        console.log("No publicKey provided, registration aborted.");
-        return;
-    }
-
+export const getUserNfts = async (publicKey: string) => {
     try {
-        console.log(`Attempting to register user with publicKey: ${publicKeyString}`);
-
-        let user = await prisma?.user.findUnique({
-            where: { publicKey: publicKeyString },
-        });
-
+        if (!publicKey) {
+            console.log("No publicKey provided, fetching nfts aborted");
+            return;
+        }
+        const user = await prisma.user.findUnique({ where: { publicKey }, include: { nfts: true } })
         if (!user) {
-            console.log(`User not found, creating new user with publicKey: ${publicKeyString}`);
-            user = await prisma?.user.create({
-                data: {
-                    publicKey: publicKeyString,
-                    tokenBalance: 0,
-                },
-            });
-            console.log(`User created successfully.`);
-        } else {
-            console.log(`User found, proceeding with NFTs registration.`);
+            throw new Error("User not found")
         }
 
-        if (nfts && nfts.length > 0) {
-            console.log(`Processing ${nfts.length} NFTs for registration.`);
+        const stakedNfts = user.nfts.filter(n => n.isStaked)
+        const unstakedNfts = user.nfts.filter(n => !n.isStaked)
 
-            for (const nft of nfts) {
-                const existingNft = await prisma.nft.findUnique({
-                    where: { mint: nft.mint },
-                });
-
-                if (!existingNft) {
-                    await prisma.nft.create({
-                        data: {
-                            name: nft.name,
-                            symbol: nft.symbol,
-                            mint: nft.mint,
-                            uri: nft.uri,
-                            image: nft.image,
-                            isStaked: false,
-                            ownerPublicKey: publicKeyString,
-                        },
-                    });
-                    console.log(`New NFT with mint: ${nft.mint} created.`);
-                } else {
-                    if (existingNft.ownerPublicKey !== publicKeyString) {
-                        await prisma.nft.update({
-                            where: { mint: nft.mint },
-                            data: {
-                                ownerPublicKey: publicKeyString,
-                            },
-                        });
-                        console.log(`NFT with mint: ${nft.mint} ownership updated.`);
-                    } else {
-                        console.log(`NFT with mint: ${nft.mint} is already registered to this user.`);
-                    }
-                }
-            }
-        }
-
-        const registeredUser = await prisma?.user.findUnique({
-            where: { publicKey: publicKeyString },
-            include: {
-                nfts: true,
-            },
-        });
-
-        console.log(`User registration completed successfully.`);
-        return registeredUser;
+        return { stakedNfts, unstakedNfts };
     } catch (error) {
-        console.error("Error registering user:", error);
-        throw new Error("Failed to register user");
+        console.error("Error fetching nfts: " + error)
     }
-};
+}
 
-export const getCurrentUser = async (publicKey: string) => {
-    if (!publicKey) {
-        throw new Error("Public key is required");
-    }
-    try {
-
-        let user = await prisma.user.findUnique({
-            where: { publicKey },
-            include: { nfts: true },
-        });
-
-
-        if (!user) {
-            console.log("User not found, registering new user...");
-            user = await registerUser(publicKey) ?? null;
-        }
-
-        return user;
-    } catch (error) {
-        console.error("Error fetching or registering user:", error);
-        throw new Error("Failed to retrieve or register the user");
-    }
-};
-
-export const stakeNfts = async (authUser: User, selectedNfts: Nft[]) => {
-    if (!authUser || !selectedNfts || !selectedNfts.length) {
+export const stakeNfts = async (publicKey: string, selectedNfts: Nft[]) => {
+    if (!publicKey || !selectedNfts || !selectedNfts.length) {
         console.log("No user or NFTs provided for staking.");
         return;
     }
 
-    console.log(`Attempting to stake ${selectedNfts.length} NFTs for user ${authUser.publicKey}.`);
+    console.log(`Attempting to stake ${selectedNfts.length} NFTs for user ${publicKey}.`);
 
     for (const nft of selectedNfts) {
         await prisma.nft.update({
@@ -123,17 +42,17 @@ export const stakeNfts = async (authUser: User, selectedNfts: Nft[]) => {
         console.log(`NFT with mint: ${nft.mint} staked successfully.`);
     }
 
-    console.log(`Staking completed for user ${authUser.publicKey}.`);
+    console.log(`Staking completed for user ${publicKey}.`);
     return;
 };
 
-export const unstakeNfts = async (authUser: User, selectedNfts: Nft[]) => {
-    if (!authUser || !selectedNfts || !selectedNfts.length) {
+export const unstakeNfts = async (publicKey: string, selectedNfts: Nft[]) => {
+    if (!publicKey || !selectedNfts || !selectedNfts.length) {
         console.log("No user or NFTs provided for unstaking.");
         return;
     }
 
-    console.log(`Attempting to unstake ${selectedNfts.length} NFTs for user ${authUser.publicKey}.`);
+    console.log(`Attempting to unstake ${selectedNfts.length} NFTs for user ${publicKey}.`);
 
     for (const nft of selectedNfts) {
         await prisma.nft.update({
@@ -145,6 +64,95 @@ export const unstakeNfts = async (authUser: User, selectedNfts: Nft[]) => {
         console.log(`NFT with mint: ${nft.mint} unstaked successfully.`);
     }
 
-    console.log(`Unstaking completed for user ${authUser.publicKey}.`);
+    console.log(`Unstaking completed for user ${publicKey}.`);
     return;
+};
+
+export const loginUser = async (publicKey: string) => {
+    if (!publicKey) {
+        console.log("No publicKey provided, registration aborted.");
+        return;
+    }
+
+    const [existingUser, nfts] = await Promise.all([
+        prisma.user.findUnique({ where: { publicKey }, include: { nfts: true } }),
+        fetchMetadata(new PublicKey(publicKey))
+    ]);
+
+    let user = existingUser;
+
+    if (!user) {
+        console.log(`User not found, creating new user with publicKey: ${publicKey}`);
+        user = await prisma.user.create({
+            data: {
+                publicKey: publicKey,
+                tokenBalance: 0,
+            },
+            include: { nfts: true }
+        });
+        console.log(`User created successfully.`);
+    } else {
+        console.log(`User found, proceeding with NFTs registration.`);
+    }
+
+    const newNfts = (await Promise.all(nfts.map(async (nft) => {
+        const existingNft = await prisma.nft.findUnique({ where: { mint: nft.mint } });
+        if (existingNft) {
+            return null;
+        }
+        return {
+            symbol: nft.symbol,
+            name: nft.name,
+            mint: nft.mint,
+            uri: nft.uri,
+            image: nft.image,
+            ownerPublicKey: publicKey,
+            isStaked: false,
+        };
+    }))).filter(nft => nft !== null);
+
+    if (newNfts.length > 0) {
+        await prisma.nft.createMany({ data: newNfts });
+    }
+
+    const ownedMints = nfts.map(nft => nft.mint);
+    const nftDetails = await prisma.nft.findMany({
+        where: {
+            mint: { in: ownedMints },
+        },
+    });
+
+    for (const nft of nftDetails) {
+        const mintExists = user?.nfts.some(item => item.mint === nft.mint);
+
+        if (!mintExists) {
+            await prisma.nft.update({
+                where: { mint: nft.mint },
+                data: {
+                    ownerPublicKey: publicKey,
+                    isStaked: nft.isStaked,
+                }
+            });
+        }
+    }
+
+    const mintsToRemove: string[] = [];
+    user?.nfts.forEach(async (nft) => {
+        if (!ownedMints.includes(nft.mint)) {
+            mintsToRemove.push(nft.mint);
+            await prisma.nft.update({ where: { mint: nft.mint }, data: { isStaked: false } });
+        }
+    });
+
+    if (mintsToRemove.length > 0) {
+        await prisma.nft.deleteMany({
+            where: { mint: { in: mintsToRemove } }
+        });
+    }
+
+    return {
+        user,
+        stakedNfts: user.nfts.filter(nft => nft.isStaked),
+        unstakeNfts: user.nfts.filter(nft => !nft.isStaked)
+    };
 };

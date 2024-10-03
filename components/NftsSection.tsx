@@ -1,8 +1,11 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { registerUser, stakeNfts, unstakeNfts } from "@/app/_actions/_actions";
+import {
+  getUserNfts,
+  loginUser,
+  stakeNfts,
+  unstakeNfts,
+} from "@/app/_actions/_actions";
 import { TABS } from "@/constants";
-import { useAssets } from "@/hooks/useAssets";
-import { useAuthUser } from "@/hooks/useAuthUser";
 import { explorerUrl } from "@/lib/helpers";
 import { authorityKeypair, wait } from "@/lib/utils";
 import { Nft } from "@prisma/client";
@@ -20,6 +23,7 @@ import {
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import OwnedNfts from "./OwnedNfts";
@@ -32,25 +36,46 @@ type Props = {
 };
 
 export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
+  const {
+    data: response,
+    isLoading: loading,
+    isError,
+  } = useQuery({
+    queryKey: ["loginUser", ownerPublicKey?.toBase58()],
+    queryFn: () => loginUser(ownerPublicKey.toBase58()),
+    enabled: !!ownerPublicKey,
+  });
+  const refreshNfts = useCallback(async () => {
+    if (!ownerPublicKey) return;
+
+    setIsLoading(true);
+    try {
+      const data = await getUserNfts(ownerPublicKey.toBase58());
+
+      if (data) {
+        setStakedNfts(data.stakedNfts);
+        setUnstakedNfts(data.unstakedNfts);
+      } else {
+        console.error("No NFTs returned from getUserNfts");
+      }
+    } catch (error) {
+      console.error("Error fetching NFTs:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [ownerPublicKey]);
+
   const [selected, setSelected] = useState<string>(TABS[0]);
 
-  const { data: authUser, refetch } = useAuthUser(ownerPublicKey.toString());
-  const { data: nfts, isLoading: loading, isError } = useAssets(ownerPublicKey);
-
   const { sendTransaction } = useWallet();
+
+  const [stakedNfts, setStakedNfts] = useState<Nft[]>([]);
+  const [unstakedNfts, setUnstakedNfts] = useState<Nft[]>([]);
 
   const [selectedNfts, setSelectedNfts] = useState<Nft[]>([]);
   const [toUnstakeNfts, setToUnstakeNfts] = useState<Nft[]>([]);
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
-
-  useEffect(() => {
-    const register = async () => {
-      const newUser = await registerUser(ownerPublicKey.toBase58(), nfts);
-      return newUser;
-    };
-    register();
-  }, [authUser, nfts]);
 
   const handleStaking = useCallback(async () => {
     const buildStakeAndFreezeTransaction = async (
@@ -96,7 +121,7 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
       return new VersionedTransaction(messageV0);
     };
 
-    if (!ownerPublicKey || !connection || !authUser) {
+    if (!ownerPublicKey || !connection) {
       console.error("Missing public key or connection");
       return;
     }
@@ -155,8 +180,9 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
       console.log("Transaction successful: ", explorerUrl(signature));
 
       // setStakedNfts((prevStaked) => [...prevStaked, ...selectedNfts]);
-      await stakeNfts(authUser, selectedNfts);
-      await refetch();
+      await stakeNfts(ownerPublicKey.toBase58(), selectedNfts);
+      await refreshNfts();
+
       setSelectedNfts([]);
       setSelected(TABS[1]);
     } catch (error) {
@@ -165,7 +191,7 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
     } finally {
       setIsLoading(false);
     }
-  }, [ownerPublicKey, connection, authUser, selectedNfts, sendTransaction]);
+  }, [ownerPublicKey, connection, selectedNfts, sendTransaction]);
 
   const handleUnstaking = useCallback(async () => {
     const buildUnstakeAndThawTransaction = async (
@@ -210,7 +236,7 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
 
       return new VersionedTransaction(messageV0);
     };
-    if (!ownerPublicKey || !connection || !authUser) {
+    if (!ownerPublicKey || !connection) {
       console.error("Missing public key or connection");
       return;
     }
@@ -270,8 +296,8 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
       // setStakedNfts((prevStaked) => {
       //   return prevStaked.filter((nft) => !toUnstakeNfts.includes(nft));
       // });
-      await unstakeNfts(authUser, toUnstakeNfts);
-      await refetch();
+      await unstakeNfts(ownerPublicKey.toBase58(), toUnstakeNfts);
+      await refreshNfts();
       setToUnstakeNfts([]);
     } catch (error) {
       const message = "Unable to complete action. Please retry.";
@@ -296,6 +322,12 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
     [],
   );
 
+  useEffect(() => {
+    if (response) {
+      setStakedNfts(response.stakedNfts ?? []);
+      setUnstakedNfts(response.unstakeNfts ?? []);
+    }
+  }, [response]);
   return (
     <>
       <section className="flex flex-col items-center justify-center gap-4">
@@ -313,7 +345,7 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
       </section>
       {selected.toLowerCase() === "owned nfts" ? (
         <OwnedNfts
-          unstakedNfts={authUser?.nfts.filter((nft) => !nft.isStaked) ?? []}
+          unstakedNfts={unstakedNfts}
           selectedNfts={selectedNfts}
           setSelectedNfts={setSelectedNfts}
           isLoading={isLoading}
@@ -324,7 +356,7 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
         />
       ) : selected.toLowerCase() === "staked nfts" ? (
         <StakedNfts
-          stakedNfts={authUser?.nfts.filter((nft) => nft.isStaked) ?? []}
+          stakedNfts={stakedNfts}
           toUnstakeNfts={toUnstakeNfts}
           setToUnstakeNfts={setToUnstakeNfts}
           handleUnstaking={handleUnstaking}

@@ -5,7 +5,6 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import MainButton from "@/components/ui/primary-button";
-import { useAuthUser } from "@/hooks/useAuthUser";
 import { useGetBalance } from "@/hooks/useGetBalance";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { WalletName } from "@solana/wallet-adapter-base";
@@ -28,7 +27,6 @@ import {
 const WalletsModal = () => {
   const { select, publicKey, disconnect, connect, wallet, wallets } =
     useWallet();
-  const { data: authUser } = useAuthUser(publicKey?.toBase58() ?? null);
   const [openConnectModal, setOpenConnectModal] = useState(false);
   const [openWalletModal, setOpenWalletModal] = useState(false);
   const { connection } = useConnection();
@@ -86,7 +84,7 @@ const WalletsModal = () => {
     () => wallets?.filter((wallet) => wallet.readyState !== "Installed"),
     [wallets],
   );
-  return !publicKey && !authUser ? (
+  return !publicKey ? (
     <Credenza open={openConnectModal} onOpenChange={setOpenConnectModal}>
       <CredenzaTrigger asChild>
         <MainButton text="Connect Wallet" />
