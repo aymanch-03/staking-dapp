@@ -13,8 +13,9 @@ datasource db {
 
 model User {
   publicKey    String   @id
-  nfts         Nft[]    @relation("UserNfts") // Combined field for all NFTs
+  nfts         Nft[]    @relation("UserNfts")
   tokenBalance Float    @default(0)
+  lastLogin    DateTime
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -27,8 +28,8 @@ model Nft {
   updatedAt      DateTime  @updatedAt
   uri            String
   image          String
-  owner          User      @relation("UserNfts", fields: [ownerPublicKey], references: [publicKey]) // Single owner relation
+  owner          User      @relation("UserNfts", fields: [ownerPublicKey], references: [publicKey])
   ownerPublicKey String
   stakedAt       DateTime?
-  isStaked       Boolean   @default(false) // Flag to indicate if the NFT is staked
+  isStaked       Boolean   @default(false)
 }

@@ -1,5 +1,5 @@
 "use server";
-import { fetchMetadata } from "@/lib/helpers";
+import { calculateEarnedPoints, fetchMetadata } from "@/lib/helpers";
 import prisma from "@/lib/prisma";
 import { authorityKeypair, connection } from "@/lib/utils";
 import { ResponseData } from "@/types";
@@ -42,8 +42,19 @@ export const loginUser = async (publicKey: string) => {
         data: {
           publicKey: publicKey,
           tokenBalance: 0,
+          lastLogin: new Date(),
         },
         include: { nfts: true },
+      });
+    } else {
+      const lastLogin = user.lastLogin
+      const timeDifference = (new Date().getTime() - lastLogin.getTime()) / 1000;
+      await updateTokenBalance(publicKey, timeDifference)
+      await prisma.user.update({
+        where: { publicKey: publicKey },
+        data: {
+          lastLogin: new Date(),
+        },
       });
     }
 
@@ -108,12 +119,17 @@ export const loginUser = async (publicKey: string) => {
       });
     }
 
+    const updatedUser = await prisma.user.findUnique({
+      where: { publicKey },
+      include: { nfts: true },
+    });
+
     return {
       success: true,
       data: {
-        stakedNfts: user.nfts.filter((nft) => nft.isStaked),
-        unstakedNfts: user.nfts.filter((nft) => !nft.isStaked),
-        tokenBalance: user.tokenBalance,
+        stakedNfts: updatedUser?.nfts.filter((nft) => nft.isStaked) || [],
+        unstakedNfts: updatedUser?.nfts.filter((nft) => !nft.isStaked) || [],
+        tokenBalance: updatedUser?.tokenBalance || 0,
       },
     };
   } catch (error) {
@@ -124,6 +140,8 @@ export const loginUser = async (publicKey: string) => {
     };
   }
 };
+
+
 
 export const getUserNfts = async (publicKey: string) => {
   try {
@@ -189,10 +207,13 @@ export const updateNftsStatus = async (
         });
       }
     });
+    const user = await prisma.user.findUnique({ where: { publicKey }, select: { nfts: true } })
 
+    const stakedNfts = user?.nfts.filter((n) => n.isStaked);
+    const unstakedNfts = user?.nfts.filter((n) => !n.isStaked);
     return {
       success: true,
-      data: null,
+      data: { stakedNfts, unstakedNfts },
     };
   } catch (error: any) {
     console.error(`Error during ${action} transaction submission:`, error);
@@ -201,31 +222,6 @@ export const updateNftsStatus = async (
       message: `Error during ${action} transaction submission: ${error.message}`,
     };
   }
-};
-
-export const unstakeNfts = async (publicKey: string, selectedNfts: Nft[]) => {
-  if (!publicKey || !selectedNfts || !selectedNfts.length) {
-    console.log("No user or NFTs provided for unstaking.");
-    return;
-  }
-
-  console.log(
-    `Attempting to unstake ${selectedNfts.length} NFTs for user ${publicKey}.`,
-  );
-
-  for (const nft of selectedNfts) {
-    await prisma.nft.update({
-      where: { mint: nft.mint },
-      data: {
-        isStaked: false,
-        stakedAt: null,
-      },
-    });
-    console.log(`NFT with mint: ${nft.mint} unstaked successfully.`);
-  }
-
-  console.log(`Unstaking completed for user ${publicKey}.`);
-  return;
 };
 
 export const getUserBalance = async (
@@ -332,7 +328,6 @@ export const claimToken = async (
         requireAllSignatures: false,
       })
       .toString("base64");
-    console.log(serializedTransaction);
 
     return {
       success: true,
@@ -471,6 +466,105 @@ export const buildStakeTransaction = async (
     return {
       success: false,
       message: "Error building staking transaction",
+    };
+  }
+};
+
+export const resetBalance = async (publicKey: string) => {
+  if (!publicKey) {
+    return {
+      success: false,
+      message: "No publicKey provided. Reset aborted.",
+    };
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { publicKey },
+    });
+
+    if (!user) {
+      return {
+        success: false,
+        message: "User not found.",
+      };
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { publicKey },
+      data: {
+        tokenBalance: 0,
+      },
+      select: { tokenBalance: true }
+    });
+
+    return {
+      success: true,
+      data: { tokenBalance: updatedUser.tokenBalance }
+    };
+  } catch (error: any) {
+    console.error("Error resetting balance:", error);
+    return {
+      success: false,
+      message: `Error resetting balance: ${error.message}`,
+    };
+  }
+};
+
+export const updateTokenBalance = async (publicKey: string, timeDifferenceInSeconds: number) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { publicKey },
+      include: { nfts: true },
+    });
+
+    if (!user) {
+      console.error("User not found for publicKey:", publicKey);
+      return {
+        success: false,
+        message: "User not found."
+      };
+    }
+
+    const stakedNfts = user.nfts.filter((nft) => nft.isStaked);
+
+    if (stakedNfts.length === 0) {
+      console.warn("No staked NFTs to update balance for:", publicKey);
+      return {
+        success: false,
+        message: "No staked NFTs to update balance for."
+      };
+    }
+
+    const earnedPoints = calculateEarnedPoints(timeDifferenceInSeconds, stakedNfts.length);
+
+    if (isNaN(earnedPoints) || earnedPoints < 0) {
+      console.error("Invalid earnedPoints value:", earnedPoints);
+      return {
+        success: false,
+        message: "Invalid earned points value."
+      };
+    }
+
+    const balanceToAdd = earnedPoints;
+
+    await prisma.user.update({
+      where: { publicKey },
+      data: {
+        tokenBalance: {
+          increment: balanceToAdd,
+        },
+      },
+    });
+
+    return;
+
+  } catch (error) {
+    console.error("Error updating token balance:", error);
+
+    return {
+      success: false,
+      message: "An error occurred while updating the token balance."
     };
   }
 };

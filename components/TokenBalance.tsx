@@ -1,4 +1,8 @@
-import { claimToken, getUserBalance } from "@/app/_actions/_actions";
+import {
+  claimToken,
+  getUserBalance,
+  resetBalance,
+} from "@/app/_actions/_actions";
 import { calculatePointsPerSecond, explorerUrl } from "@/lib/helpers";
 import { authorityKeypair } from "@/lib/utils";
 import { Nft } from "@prisma/client";
@@ -9,25 +13,31 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import ToolbarExpandable from "./ui/animated-toolbar";
 
 type Props = {
   stakedNfts: Nft[];
   isLoading: boolean;
+  tokenBalance: number;
+  setTokenBalance: Dispatch<SetStateAction<number>>;
 };
 
-// ? The balance is updated in the database by calculating the difference between the last login time and the stakedAt time to determine the exact duration the NFT was staked.
-
-export const TokenBalance = ({ stakedNfts, isLoading }: Props) => {
+export const TokenBalance = ({
+  stakedNfts,
+  isLoading,
+  tokenBalance,
+  setTokenBalance,
+}: Props) => {
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
-  const [tokenBalance, setTokenBalance] = useState<number>(0);
+
   const { data: response } = useQuery({
     queryKey: ["tokenBalance", publicKey?.toBase58()],
     queryFn: () => getUserBalance(publicKey?.toBase58() ?? ""),
     enabled: !!publicKey,
+    staleTime: 0,
   });
   const [claimLoading, setClaimLoading] = useState(false);
 
@@ -59,14 +69,16 @@ export const TokenBalance = ({ stakedNfts, isLoading }: Props) => {
     try {
       setClaimLoading(true);
       const response = await claimToken(publicKey.toBase58(), tokenBalance);
-
       if (!response.success) {
         toast.error(response.message!);
         throw new Error("Failed to retrieve token claim transaction.");
       }
 
-      const transactionBase64 = response.data?.transaction;
+      toast.loading(`Claiming ${tokenBalance.toFixed(6)} $DEV`, {
+        id: "tokenClaim",
+      });
 
+      const transactionBase64 = response.data?.transaction;
       const deserializedTransaction = Transaction.from(
         Buffer.from(JSON.parse(transactionBase64).transaction, "base64"),
       );
@@ -84,7 +96,6 @@ export const TokenBalance = ({ stakedNfts, isLoading }: Props) => {
       const simulationResult =
         await connection.simulateTransaction(versionedTransaction);
       if (simulationResult.value.err) {
-        console.error("Simulation error details:", simulationResult.value.logs);
         throw new Error("Transaction simulation failed.");
       }
 
@@ -99,32 +110,34 @@ export const TokenBalance = ({ stakedNfts, isLoading }: Props) => {
 
       console.log("Awaiting transaction confirmation...");
       const latestBlockhash = await connection.getLatestBlockhash("finalized");
-
-      const confirmation = await toast.promise(
-        connection.confirmTransaction(
-          {
-            blockhash: latestBlockhash.blockhash,
-            lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-            signature,
-          },
-          "confirmed",
-        ),
+      const confirmation = await connection.confirmTransaction(
         {
-          loading: "Processing your transaction...",
-          success: <b>Transaction confirmed successfully!</b>,
-          error: <b>Transaction failed. Please try again.</b>,
+          blockhash: latestBlockhash.blockhash,
+          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+          signature,
         },
+        "confirmed",
       );
 
       if (confirmation.value.err) {
-        throw new Error("Transaction confirmation failed");
+        throw new Error("Transaction confirmation failed.");
       }
 
-      console.log("Transaction successful: ", explorerUrl(signature));
+      const resetResponse = await resetBalance(publicKey.toBase58());
+      if (resetResponse.success) {
+        console.log("Refetching token balance...");
+        setTokenBalance(resetResponse.data?.tokenBalance ?? 0);
+        toast.success(`Successfully claimed ${tokenBalance.toFixed(6)} $DEV`, {
+          id: "tokenClaim",
+        });
+      } else {
+        toast.error("Failed to reset balance.");
+      }
     } catch (error) {
       console.error("Error during token claim:", error);
       toast.error(
         `${error instanceof Error ? error.message : "Unknown error" || "Unable to complete action."}`,
+        { id: "tokenClaim" },
       );
     } finally {
       setClaimLoading(false);

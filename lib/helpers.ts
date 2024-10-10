@@ -52,7 +52,15 @@ export const fetchMetadata = async (
 };
 
 export const calculatePointsPerSecond = (stakedNFTsLength: number): number => {
-  const pointsPerDay = 3 * stakedNFTsLength;
+  const pointsPerDay = 5 * stakedNFTsLength;
   const pointsPerSecond = pointsPerDay / (24 * 60 * 60);
-  return pointsPerSecond * 1.3;
+  return pointsPerSecond;
+};
+
+export const calculateEarnedPoints = (timeDifferenceInSeconds: number, stakedNFTsLength: number): number => {
+  const pointsPerSecond = calculatePointsPerSecond(stakedNFTsLength);
+
+  const earnedPoints = timeDifferenceInSeconds * pointsPerSecond;
+
+  return earnedPoints;
 };
