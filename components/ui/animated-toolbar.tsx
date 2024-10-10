@@ -94,7 +94,9 @@ export default function ToolbarExpandable({
                             </span>
                           </div>
                           <Button
-                            disabled={isLoading || claimLoading}
+                            disabled={
+                              isLoading || claimLoading || tokenBalance <= 0
+                            }
                             onClick={claimToken}
                             className="relative h-8 w-full scale-100 select-none appearance-none items-center justify-center rounded-lg border border-zinc-950/10 bg-black/45 px-2 text-base text-white transition-colors hover:bg-black/70 focus-visible:ring-2 active:scale-[0.98]"
                             type="button"
