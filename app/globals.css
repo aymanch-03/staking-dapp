@@ -67,3 +67,13 @@
     @apply bg-foreground text-background;
   }
 }
+
+.gradient-effect {
+  background: radial-gradient(
+      77.99% 64.58% at 49.93% 17.71%,
+      rgb(255, 255, 255) 0%,
+      rgba(255, 255, 255, 0.4) 100%
+    )
+    text;
+  -webkit-text-fill-color: transparent;
+}

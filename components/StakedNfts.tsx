@@ -1,4 +1,12 @@
+import { NftCard } from "@/components/NftCard";
 import { TABS } from "@/constants";
+import { Button } from "@/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/ui/tooltip";
 import { Nft } from "@prisma/client";
 import { motion } from "framer-motion";
 import {
@@ -10,14 +18,6 @@ import {
   X,
 } from "lucide-react";
 import React from "react";
-import { NftCard } from "./NftCard";
-import { Button } from "./ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./ui/tooltip";
 
 type Props = {
   toUnstakeNfts: Nft[];

@@ -20,14 +20,15 @@ model User {
 }
 
 model Nft {
-  mint              String   @id
-  name              String
-  symbol            String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  uri               String
-  image             String
-  owner             User     @relation("UserNfts", fields: [ownerPublicKey], references: [publicKey]) // Single owner relation
-  ownerPublicKey    String
-  isStaked          Boolean  @default(false) // Flag to indicate if the NFT is staked
+  mint           String    @id
+  name           String
+  symbol         String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  uri            String
+  image          String
+  owner          User      @relation("UserNfts", fields: [ownerPublicKey], references: [publicKey]) // Single owner relation
+  ownerPublicKey String
+  stakedAt       DateTime?
+  isStaked       Boolean   @default(false) // Flag to indicate if the NFT is staked
 }

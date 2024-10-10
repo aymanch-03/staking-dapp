@@ -52,61 +52,61 @@ const circular = localFont({
   ],
   variable: "--font-circular",
 });
- const firs = localFont({
-   src: [
-     {
-       path: "./fonts/TT Firs Neue Trial Thin.ttf",
-       weight: "100",
-       style: "normal",
-     },
-     {
-       path: "./fonts/TT Firs Neue Trial ExtraLight.ttf",
-       weight: "200",
-       style: "normal",
-     },
-     {
-       path: "./fonts/TT Firs Neue Trial Light.ttf",
-       weight: "300",
-       style: "normal",
-     },
-     {
-       path: "./fonts/TT Firs Neue Trial Regular.ttf",
-       weight: "400",
-       style: "normal",
-     },
-     {
-       path: "./fonts/TT Firs Neue Trial Medium.ttf",
-       weight: "500",
-       style: "normal",
-     },
-     {
-       path: "./fonts/TT Firs Neue Trial DemiBold.ttf",
-       weight: "600",
-       style: "normal",
-     },
-     {
-       path: "./fonts/TT Firs Neue Trial Bold.ttf",
-       weight: "700",
-       style: "normal",
-     },
-     {
-       path: "./fonts/TT Firs Neue Trial ExtraBold.ttf",
-       weight: "800",
-       style: "normal",
-     },
-     {
-       path: "./fonts/TT Firs Neue Trial Black.ttf",
-       weight: "900",
-       style: "normal",
-     },
-   ],
-   variable: "--font-firs",
- });
+const firs = localFont({
+  src: [
+    {
+      path: "./fonts/TT Firs Neue Trial Thin.ttf",
+      weight: "100",
+      style: "normal",
+    },
+    {
+      path: "./fonts/TT Firs Neue Trial ExtraLight.ttf",
+      weight: "200",
+      style: "normal",
+    },
+    {
+      path: "./fonts/TT Firs Neue Trial Light.ttf",
+      weight: "300",
+      style: "normal",
+    },
+    {
+      path: "./fonts/TT Firs Neue Trial Regular.ttf",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "./fonts/TT Firs Neue Trial Medium.ttf",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "./fonts/TT Firs Neue Trial DemiBold.ttf",
+      weight: "600",
+      style: "normal",
+    },
+    {
+      path: "./fonts/TT Firs Neue Trial Bold.ttf",
+      weight: "700",
+      style: "normal",
+    },
+    {
+      path: "./fonts/TT Firs Neue Trial ExtraBold.ttf",
+      weight: "800",
+      style: "normal",
+    },
+    {
+      path: "./fonts/TT Firs Neue Trial Black.ttf",
+      weight: "900",
+      style: "normal",
+    },
+  ],
+  variable: "--font-firs",
+});
 
- export const metadata: Metadata = {
-   title: "Staking Dapp",
-   description: "Staking Dapp",
- };
+export const metadata: Metadata = {
+  title: "Staking Dapp",
+  description: "Staking Dapp",
+};
 
 export default function RootLayout({
   children,
@@ -116,7 +116,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${circular.variable} ${firs.variable} ${calSans.variable} h-[100vh] font-heading antialiased`}
+        className={`${circular.variable} ${firs.variable} ${calSans.variable} h-[100vh] overflow-x-hidden font-heading antialiased`}
       >
         <ContextProvider>{children}</ContextProvider>
       </body>
