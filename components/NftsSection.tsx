@@ -1,8 +1,6 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 import {
   buildStakeTransaction,
   buildUnstakeTransaction,
-  getUserNfts,
   loginUser,
   updateNftsStatus,
 } from "@/app/_actions/_actions";
@@ -40,27 +38,8 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
     queryKey: ["loginUser", ownerPublicKey?.toBase58()],
     queryFn: () => loginUser(ownerPublicKey.toBase58()),
     enabled: !!ownerPublicKey,
+    staleTime: Infinity,
   });
-
-  const refreshNfts = useCallback(async () => {
-    if (!ownerPublicKey) return;
-
-    setIsLoading(true);
-    try {
-      const response = await getUserNfts(ownerPublicKey.toBase58());
-
-      if (response.success) {
-        setStakedNfts(response.data?.stakedNfts ?? []);
-        setUnstakedNfts(response.data?.unstakedNfts ?? []);
-      } else {
-        console.error("No NFTs returned from getUserNfts");
-      }
-    } catch (error) {
-      console.error("Error fetching NFTs:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [ownerPublicKey]);
 
   const [selected, setSelected] = useState<string>(TABS[0]);
 
@@ -71,6 +50,7 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
 
   const [selectedNfts, setSelectedNfts] = useState<Nft[]>([]);
   const [toUnstakeNfts, setToUnstakeNfts] = useState<Nft[]>([]);
+  const [tokenBalance, setTokenBalance] = useState<number>(0);
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -160,11 +140,12 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
           id: "tx",
         });
       }
+      setStakedNfts(response.data?.stakedNfts ?? []);
+      setUnstakedNfts(response.data?.unstakedNfts ?? []);
       toast.success("Transaction successfully confirmed", { id: "tx" });
 
       console.log("Transaction successful: ", explorerUrl(signature));
 
-      await refreshNfts();
       setSelected(TABS[1]);
     } catch (error) {
       if (error instanceof Error) {
@@ -277,11 +258,13 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
         });
         return;
       }
+      setStakedNfts(response.data?.stakedNfts ?? []);
+      setUnstakedNfts(response.data?.unstakedNfts ?? []);
       toast.success("Transaction successfully confirmed", { id: "tx" });
 
       console.log("Transaction successful: ", explorerUrl(signature));
 
-      await refreshNfts();
+      // await refreshNfts();
     } catch (error) {
       if (error instanceof Error) {
         console.error(error);
@@ -315,6 +298,7 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
     if (response?.success) {
       setStakedNfts(response.data?.stakedNfts ?? []);
       setUnstakedNfts(response.data?.unstakedNfts ?? []);
+      setTokenBalance(response.data?.tokenBalance ?? 0);
     }
   }, [response]);
 
@@ -365,7 +349,12 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
         </>
       ) : null}
 
-      <TokenBalance stakedNfts={stakedNfts} isLoading={isLoading} />
+      <TokenBalance
+        stakedNfts={stakedNfts}
+        isLoading={isLoading}
+        tokenBalance={tokenBalance}
+        setTokenBalance={setTokenBalance}
+      />
     </>
   );
 };
