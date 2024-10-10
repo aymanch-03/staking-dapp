@@ -6,6 +6,15 @@ import {
 } from "@/components/ui/accordion";
 import MainButton from "@/components/ui/primary-button";
 import { useGetBalance } from "@/hooks/useGetBalance";
+import { Button } from "@/ui/button";
+import {
+  Credenza,
+  CredenzaContent,
+  CredenzaDescription,
+  CredenzaHeader,
+  CredenzaTitle,
+  CredenzaTrigger,
+} from "@/ui/modal";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { WalletName } from "@solana/wallet-adapter-base";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -14,15 +23,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "../ui/button";
-import {
-  Credenza,
-  CredenzaContent,
-  CredenzaDescription,
-  CredenzaHeader,
-  CredenzaTitle,
-  CredenzaTrigger,
-} from "../ui/modal";
 
 const WalletsModal = () => {
   const { select, publicKey, disconnect, connect, wallet, wallets } =

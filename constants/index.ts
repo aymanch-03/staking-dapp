@@ -1,1 +1,1 @@
-export const TABS = ["Owned NFTs", "Staked NFTs"]
+export const TABS = ["Owned NFTs", "Staked NFTs"];

@@ -1,4 +1,12 @@
+import { NftCard } from "@/components/NftCard";
 import { TABS } from "@/constants";
+import { Button } from "@/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/ui/tooltip";
 import { Nft } from "@prisma/client";
 import { motion } from "framer-motion";
 import {
@@ -10,14 +18,6 @@ import {
   X,
 } from "lucide-react";
 import React from "react";
-import { NftCard } from "./NftCard";
-import { Button } from "./ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./ui/tooltip";
 
 type Props = {
   toUnstakeNfts: Nft[];
@@ -99,6 +99,7 @@ const StakedNfts = ({
         <div className="grid grid-cols-1 gap-6 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {stakedNfts.map((nft, index) => (
             <NftCard
+              isStaked={nft.isStaked}
               isLoading={isLoading}
               key={nft.name}
               nft={nft}
