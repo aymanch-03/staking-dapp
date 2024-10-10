@@ -99,7 +99,6 @@ const StakedNfts = ({
         <div className="grid grid-cols-1 gap-6 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {stakedNfts.map((nft, index) => (
             <NftCard
-              isStaked={nft.isStaked}
               isLoading={isLoading}
               key={nft.name}
               nft={nft}
