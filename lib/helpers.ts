@@ -57,7 +57,10 @@ export const calculatePointsPerSecond = (stakedNFTsLength: number): number => {
   return pointsPerSecond;
 };
 
-export const calculateEarnedPoints = (timeDifferenceInSeconds: number, stakedNFTsLength: number): number => {
+export const calculateEarnedPoints = (
+  timeDifferenceInSeconds: number,
+  stakedNFTsLength: number,
+): number => {
   const pointsPerSecond = calculatePointsPerSecond(stakedNFTsLength);
 
   const earnedPoints = timeDifferenceInSeconds * pointsPerSecond;

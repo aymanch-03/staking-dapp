@@ -14,6 +14,7 @@ import {
 } from "@solana/wallet-adapter-wallets";
 import { clusterApiUrl } from "@solana/web3.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { SessionProvider } from "next-auth/react";
 import React, { useMemo, useState } from "react";
 import { Toaster } from "react-hot-toast";
 export default function ContextProvider({
@@ -42,9 +43,11 @@ export default function ContextProvider({
   return (
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider wallets={wallets} autoConnect>
-        <QueryClientProvider client={queryClient}>
-          <div vaul-drawer-wrapper="">{children}</div>
-        </QueryClientProvider>
+        <SessionProvider>
+          <QueryClientProvider client={queryClient}>
+            <div vaul-drawer-wrapper="">{children}</div>
+          </QueryClientProvider>
+        </SessionProvider>
         <Toaster
           toastOptions={{
             style: {
@@ -53,6 +56,7 @@ export default function ContextProvider({
               border: "1px solid rgba(255,255,255,0.2)",
               color: "rgba(255,255,255)",
               borderRadius: "10px",
+              textAlign: "center",
             },
           }}
         />

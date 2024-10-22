@@ -17,6 +17,9 @@ import {
   sendAndConfirmTransaction,
   Transaction,
 } from "@solana/web3.js";
+import { NextApiRequest } from "next";
+import { getToken as getNextauthToken } from "next-auth/jwt";
+import { cookies, headers } from "next/headers";
 
 export const loginUser = async (publicKey: string) => {
   if (!publicKey) {
@@ -47,9 +50,10 @@ export const loginUser = async (publicKey: string) => {
         include: { nfts: true },
       });
     } else {
-      const lastLogin = user.lastLogin
-      const timeDifference = (new Date().getTime() - lastLogin.getTime()) / 1000;
-      await updateTokenBalance(publicKey, timeDifference)
+      const lastLogin = user.lastLogin;
+      const timeDifference =
+        (new Date().getTime() - lastLogin.getTime()) / 1000;
+      await updateTokenBalance(publicKey, timeDifference);
       await prisma.user.update({
         where: { publicKey: publicKey },
         data: {
@@ -141,8 +145,6 @@ export const loginUser = async (publicKey: string) => {
   }
 };
 
-
-
 export const getUserNfts = async (publicKey: string) => {
   try {
     if (!publicKey) {
@@ -188,6 +190,15 @@ export const updateNftsStatus = async (
   selectedNfts: Nft[],
   action: "stake" | "unstake",
 ) => {
+  const token = await getToken();
+  if (!token) {
+    return {
+      success: false,
+      status: 401,
+      message: "Sign a message to prove ownership",
+    };
+  }
+
   if (!publicKey || !selectedNfts || !selectedNfts.length) {
     return {
       success: false,
@@ -207,7 +218,10 @@ export const updateNftsStatus = async (
         });
       }
     });
-    const user = await prisma.user.findUnique({ where: { publicKey }, select: { nfts: true } })
+    const user = await prisma.user.findUnique({
+      where: { publicKey },
+      select: { nfts: true },
+    });
 
     const stakedNfts = user?.nfts.filter((n) => n.isStaked);
     const unstakedNfts = user?.nfts.filter((n) => !n.isStaked);
@@ -228,6 +242,16 @@ export const getUserBalance = async (
   publicKey: string,
 ): Promise<ResponseData> => {
   try {
+    const token = await getToken();
+
+    if (!token) {
+      return {
+        success: false,
+        status: 401,
+        message: "Sign a message to prove ownership",
+      };
+    }
+
     if (!publicKey) {
       return {
         success: false,
@@ -269,6 +293,15 @@ export const claimToken = async (
   amount: number,
 ): Promise<ResponseData> => {
   try {
+    const token = await getToken();
+
+    if (!token) {
+      return {
+        success: false,
+        status: 401,
+        message: "Sign a message to prove ownership",
+      };
+    }
     if (!publicKey || amount <= 0) {
       return {
         success: false,
@@ -348,6 +381,14 @@ export const buildUnstakeTransaction = async (
   publicKey: string,
   selectedNfts: Nft[],
 ): Promise<ResponseData> => {
+  const token = await getToken();
+  if (!token) {
+    return {
+      success: false,
+      status: 401,
+      message: "Sign a message to prove ownership",
+    };
+  }
   if (!publicKey || !selectedNfts || !selectedNfts.length) {
     console.error("No user or NFTs provided for unstaking.");
     return {
@@ -411,6 +452,15 @@ export const buildStakeTransaction = async (
   publicKey: string,
   selectedNfts: Nft[],
 ): Promise<ResponseData> => {
+  const token = await getToken();
+  if (!token) {
+    return {
+      success: false,
+      status: 401,
+      message: "Sign a message to prove ownership",
+    };
+  }
+
   if (!publicKey || !selectedNfts || !selectedNfts.length) {
     console.error("No user or NFTs provided for staking.");
     return {
@@ -471,6 +521,15 @@ export const buildStakeTransaction = async (
 };
 
 export const resetBalance = async (publicKey: string) => {
+  const token = await getToken();
+  if (!token) {
+    return {
+      success: false,
+      status: 401,
+      message: "Sign a message to prove ownership",
+    };
+  }
+
   if (!publicKey) {
     return {
       success: false,
@@ -495,12 +554,12 @@ export const resetBalance = async (publicKey: string) => {
       data: {
         tokenBalance: 0,
       },
-      select: { tokenBalance: true }
+      select: { tokenBalance: true },
     });
 
     return {
       success: true,
-      data: { tokenBalance: updatedUser.tokenBalance }
+      data: { tokenBalance: updatedUser.tokenBalance },
     };
   } catch (error: any) {
     console.error("Error resetting balance:", error);
@@ -511,7 +570,26 @@ export const resetBalance = async (publicKey: string) => {
   }
 };
 
-export const updateTokenBalance = async (publicKey: string, timeDifferenceInSeconds: number) => {
+export const updateTokenBalance = async (
+  publicKey: string,
+  timeDifferenceInSeconds: number,
+) => {
+  const token = await getToken();
+  if (!token) {
+    return {
+      success: false,
+      status: 401,
+      message: "Sign a message to prove ownership",
+    };
+  }
+
+  if (!publicKey) {
+    return {
+      success: false,
+      message: "No publicKey provided.",
+    };
+  }
+
   try {
     const user = await prisma.user.findUnique({
       where: { publicKey },
@@ -522,7 +600,7 @@ export const updateTokenBalance = async (publicKey: string, timeDifferenceInSeco
       console.error("User not found for publicKey:", publicKey);
       return {
         success: false,
-        message: "User not found."
+        message: "User not found.",
       };
     }
 
@@ -532,17 +610,20 @@ export const updateTokenBalance = async (publicKey: string, timeDifferenceInSeco
       console.warn("No staked NFTs to update balance for:", publicKey);
       return {
         success: false,
-        message: "No staked NFTs to update balance for."
+        message: "No staked NFTs to update balance for.",
       };
     }
 
-    const earnedPoints = calculateEarnedPoints(timeDifferenceInSeconds, stakedNfts.length);
+    const earnedPoints = calculateEarnedPoints(
+      timeDifferenceInSeconds,
+      stakedNfts.length,
+    );
 
     if (isNaN(earnedPoints) || earnedPoints < 0) {
       console.error("Invalid earnedPoints value:", earnedPoints);
       return {
         success: false,
-        message: "Invalid earned points value."
+        message: "Invalid earned points value.",
       };
     }
 
@@ -558,13 +639,26 @@ export const updateTokenBalance = async (publicKey: string, timeDifferenceInSeco
     });
 
     return;
-
   } catch (error) {
     console.error("Error updating token balance:", error);
 
     return {
       success: false,
-      message: "An error occurred while updating the token balance."
+      message: "An error occurred while updating the token balance.",
     };
   }
+};
+
+const getToken = async () => {
+  const cookieStore = cookies();
+  const token = await getNextauthToken({
+    req: {
+      headers: Object.fromEntries(headers()),
+      cookies: Object.fromEntries(
+        cookieStore.getAll().map((cookie) => [cookie.name, cookie.value]),
+      ),
+    } as NextApiRequest,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+  return token;
 };

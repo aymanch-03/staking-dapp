@@ -6,9 +6,10 @@ import {
 } from "@/app/_actions/_actions";
 import OwnedNfts from "@/components/OwnedNfts";
 import StakedNfts from "@/components/StakedNfts";
-import { TABS } from "@/constants";
+import { MAX_RETRIES, TABS } from "@/constants";
 import { explorerUrl } from "@/lib/helpers";
-import { authorityKeypair } from "@/lib/utils";
+import { authorityKeypair, signIn } from "@/lib/utils";
+import { Action } from "@/types";
 import { Tab } from "@/ui/tabs";
 import { Nft } from "@prisma/client";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -43,7 +44,7 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
 
   const [selected, setSelected] = useState<string>(TABS[0]);
 
-  const { sendTransaction } = useWallet();
+  const { sendTransaction, signMessage } = useWallet();
 
   const [stakedNfts, setStakedNfts] = useState<Nft[]>([]);
   const [unstakedNfts, setUnstakedNfts] = useState<Nft[]>([]);
@@ -54,231 +55,148 @@ export const NftsSection = ({ connection, ownerPublicKey }: Props) => {
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const handleStaking = useCallback(async () => {
-    if (!ownerPublicKey || !connection) {
-      console.error("Missing public key or connection");
-      return;
-    }
-
-    if (!selectedNfts || selectedNfts.length === 0) {
-      console.log("No NFTs selected or all are already staked");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      if (!authorityKeypair) {
-        throw new Error("No authority key found");
-      }
-      const buildingTxResponse = await buildStakeTransaction(
-        ownerPublicKey.toBase58(),
-        selectedNfts,
-      );
-      if (!buildingTxResponse.success) {
-        toast.error(
-          buildingTxResponse?.message || "Error while building transaction",
-        );
-        throw new Error("Failed to build stake transaction");
-      }
-
-      const transactionBase64 = buildingTxResponse.data?.transaction;
-
-      const transaction = Transaction.from(
-        Buffer.from(transactionBase64, "base64"),
-      );
-
-      toast.loading("Sending Transaction", { id: "tx" });
-      const latestBlockhash = await connection.getLatestBlockhash("finalized");
-
-      const messageV0 = new TransactionMessage({
-        recentBlockhash: latestBlockhash.blockhash,
-        instructions: transaction.instructions,
-        payerKey: ownerPublicKey,
-      }).compileToV0Message();
-
-      const versionedTransaction = new VersionedTransaction(messageV0);
-
-      const simulationResult =
-        await connection.simulateTransaction(versionedTransaction);
-      if (simulationResult.value.err) {
-        console.error(
-          "Trnsaction simulation failed: ",
-          simulationResult.value.logs,
-        );
-        toast.error("Trnsaction simulation failed", { id: "tx" });
+  const handleTransaction = useCallback(
+    async (nfts: Nft[], action: Action) => {
+      if (!ownerPublicKey || !connection || !signMessage) {
+        console.error("Missing public key or connection");
         return;
       }
 
-      const signature = await sendTransaction(
-        versionedTransaction,
-        connection,
-        {
-          signers: [authorityKeypair],
-        },
-      );
-
-      const confirmation = await connection.confirmTransaction({
-        blockhash: latestBlockhash.blockhash,
-        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-        signature,
-      });
-
-      if (confirmation.value.err) {
-        throw new Error("Transaction confirmation failed");
-      }
-
-      const response = await updateNftsStatus(
-        ownerPublicKey.toBase58(),
-        selectedNfts,
-        "stake",
-      );
-
-      if (!response.success) {
-        console.error(response.message);
-        return toast.error("Transaction failed. Please try again", {
-          id: "tx",
-        });
-      }
-      setStakedNfts(response.data?.stakedNfts ?? []);
-      setUnstakedNfts(response.data?.unstakedNfts ?? []);
-      toast.success("Transaction successfully confirmed", { id: "tx" });
-
-      console.log("Transaction successful: ", explorerUrl(signature));
-
-      setSelected(TABS[1]);
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error(error);
-        toast.error(error.message, { id: "tx" });
-      } else {
-        console.error("An unknown error occurred: ", error);
-        toast.error("An unknown error occurred", { id: "tx" });
-      }
-    } finally {
-      setIsLoading(false);
-      setSelectedNfts([]);
-    }
-  }, [ownerPublicKey, connection, selectedNfts, sendTransaction]);
-
-  const handleUnstaking = useCallback(async () => {
-    if (!ownerPublicKey || !connection) {
-      console.error("Missing public key or connection");
-      return;
-    }
-
-    if (!toUnstakeNfts || toUnstakeNfts.length === 0) {
-      console.log("No NFTs selected or provided for unstaking");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      if (!authorityKeypair) {
-        throw new Error("No authority key found");
-      }
-
-      // for (const nft of toUnstakeNfts) {
-      //   const mint = new PublicKey(nft.mint);
-      //   const ata = await getAssociatedTokenAddress(mint, ownerPublicKey);
-      //   const info = await getAccountInfo(connection, new PublicKey(ata));
-      //   console.log({ mint: info.mint.toBase58(), isFrozen: info.isFrozen });
-      // }
-
-      const buildingTxResponse = await buildUnstakeTransaction(
-        ownerPublicKey.toBase58(),
-        toUnstakeNfts,
-      );
-
-      if (!buildingTxResponse.success) {
-        toast.error(
-          buildingTxResponse?.message || "Error while building transaction",
-        );
-        throw new Error("Failed to build unstake transaction");
-      }
-
-      const transactionBase64 = buildingTxResponse.data?.transaction;
-
-      const transaction = Transaction.from(
-        Buffer.from(transactionBase64, "base64"),
-      );
-
-      toast.loading("Sending Transaction", { id: "tx" });
-      const latestBlockhash = await connection.getLatestBlockhash("finalized");
-
-      const messageV0 = new TransactionMessage({
-        recentBlockhash: latestBlockhash.blockhash,
-        instructions: transaction.instructions,
-        payerKey: ownerPublicKey,
-      }).compileToV0Message();
-
-      const versionedTransaction = new VersionedTransaction(messageV0);
-
-      const simulationResult =
-        await connection.simulateTransaction(versionedTransaction);
-      if (simulationResult.value.err) {
-        console.error(
-          "Trnsaction simulation failed: ",
-          simulationResult.value.logs,
-        );
-        toast.error("Trnsaction simulation failed", { id: "tx" });
+      if (!nfts || nfts.length === 0) {
+        console.log(`No NFTs selected or provided for ${action}`);
         return;
       }
 
-      const signature = await sendTransaction(
-        versionedTransaction,
-        connection,
-        {
-          signers: [authorityKeypair],
-        },
-      );
+      setIsLoading(true);
 
-      const confirmation = await connection.confirmTransaction({
-        blockhash: latestBlockhash.blockhash,
-        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-        signature,
-      });
+      try {
+        for (let retryCount = 0; retryCount < MAX_RETRIES; retryCount++) {
+          if (!authorityKeypair) {
+            throw new Error("No authority key found");
+          }
 
-      if (confirmation.value.err) {
-        toast.error("Transaction confirmation failed", { id: "tx" });
-        throw new Error("Transaction confirmation failed");
+          const buildTransaction =
+            action === "stake"
+              ? buildStakeTransaction
+              : buildUnstakeTransaction;
+          const buildingTxResponse = await buildTransaction(
+            ownerPublicKey.toBase58(),
+            nfts,
+          );
+
+          if (
+            !buildingTxResponse.success ||
+            buildingTxResponse.status === 401
+          ) {
+            toast.error(
+              buildingTxResponse?.message ||
+                `Error while building ${action} transaction`,
+            );
+
+            if (buildingTxResponse.status === 401) {
+              await signIn(ownerPublicKey, signMessage);
+              continue;
+            }
+            throw new Error(`Failed to build ${action} transaction`);
+          }
+
+          const transactionBase64 = buildingTxResponse.data?.transaction;
+          const transaction = Transaction.from(
+            Buffer.from(transactionBase64, "base64"),
+          );
+
+          toast.loading(`Sending Transaction`, { id: "tx" });
+          const latestBlockhash =
+            await connection.getLatestBlockhash("finalized");
+
+          const messageV0 = new TransactionMessage({
+            recentBlockhash: latestBlockhash.blockhash,
+            instructions: transaction.instructions,
+            payerKey: ownerPublicKey,
+          }).compileToV0Message();
+
+          const versionedTransaction = new VersionedTransaction(messageV0);
+
+          const simulationResult =
+            await connection.simulateTransaction(versionedTransaction);
+
+          if (simulationResult.value.err) {
+            console.error(
+              `Transaction simulation failed: `,
+              simulationResult.value.logs,
+            );
+            toast.error(`Transaction simulation failed`, { id: "tx" });
+            continue;
+          }
+
+          const signature = await sendTransaction(
+            versionedTransaction,
+            connection,
+            {
+              signers: [authorityKeypair],
+            },
+          );
+
+          const confirmation = await connection.confirmTransaction({
+            blockhash: latestBlockhash.blockhash,
+            lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+            signature,
+          });
+
+          if (confirmation.value.err) {
+            toast.error(`Transaction confirmation failed`, { id: "tx" });
+            throw new Error(`Transaction confirmation failed`);
+          }
+
+          const response = await updateNftsStatus(
+            ownerPublicKey.toBase58(),
+            nfts,
+            action,
+          );
+
+          if (!response.success) {
+            console.error(response.message);
+            toast.error(`Transaction failed. Please try again`, { id: "tx" });
+            continue;
+          }
+
+          setStakedNfts(response.data?.stakedNfts ?? []);
+          setUnstakedNfts(response.data?.unstakedNfts ?? []);
+          toast.success(`Transaction successfully confirmed`, { id: "tx" });
+
+          console.log(`Transaction successful: `, explorerUrl(signature));
+          setSelected(action === "stake" ? TABS[1] : TABS[0]);
+          break;
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          console.error(error);
+          toast.error(error.message, { id: "tx" });
+        } else {
+          console.error("An unknown error occurred: ", error);
+          toast.error("An unknown error occurred", { id: "tx" });
+        }
+      } finally {
+        setIsLoading(false);
+        if (action === "stake") {
+          setSelectedNfts([]);
+        } else {
+          setToUnstakeNfts([]);
+        }
+        toast.dismiss("tx");
       }
+    },
+    [ownerPublicKey, connection, signMessage, sendTransaction],
+  );
 
-      const response = await updateNftsStatus(
-        ownerPublicKey.toBase58(),
-        toUnstakeNfts,
-        "unstake",
-      );
-
-      if (!response.success) {
-        console.error(response.message);
-        toast.error("Transaction failed. Please try again", {
-          id: "tx",
-        });
-        return;
-      }
-      setStakedNfts(response.data?.stakedNfts ?? []);
-      setUnstakedNfts(response.data?.unstakedNfts ?? []);
-      toast.success("Transaction successfully confirmed", { id: "tx" });
-
-      console.log("Transaction successful: ", explorerUrl(signature));
-
-      // await refreshNfts();
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error(error);
-        toast.error(error.message, { id: "tx" });
-      } else {
-        console.error("An unknown error occurred: ", error);
-        toast.error("An unknown error occurred", { id: "tx" });
-      }
-    } finally {
-      setIsLoading(false);
-      setToUnstakeNfts([]);
-      toast.dismiss("tx");
-    }
-  }, [ownerPublicKey, connection, toUnstakeNfts, sendTransaction]);
+  const handleStaking = useCallback(
+    () => handleTransaction(selectedNfts, "stake"),
+    [selectedNfts, handleTransaction],
+  );
+  const handleUnstaking = useCallback(
+    () => handleTransaction(toUnstakeNfts, "unstake"),
+    [toUnstakeNfts, handleTransaction],
+  );
 
   const handleSelectNft = useCallback(
     (
