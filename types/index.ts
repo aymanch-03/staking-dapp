@@ -11,4 +11,7 @@ export interface ResponseData {
   success: boolean;
   data?: { [key: string]: any };
   message?: string;
+  status?: number;
 }
+
+export type Action = "stake" | "unstake";

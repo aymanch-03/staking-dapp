@@ -3,8 +3,9 @@ import {
   getUserBalance,
   resetBalance,
 } from "@/app/_actions/_actions";
-import { calculatePointsPerSecond, explorerUrl } from "@/lib/helpers";
-import { authorityKeypair } from "@/lib/utils";
+import { MAX_RETRIES } from "@/constants";
+import { calculatePointsPerSecond } from "@/lib/helpers";
+import { authorityKeypair, signIn } from "@/lib/utils";
 import { Nft } from "@prisma/client";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
@@ -31,7 +32,7 @@ export const TokenBalance = ({
   setTokenBalance,
 }: Props) => {
   const { connection } = useConnection();
-  const { publicKey, sendTransaction } = useWallet();
+  const { publicKey, sendTransaction, signMessage } = useWallet();
 
   const { data: response } = useQuery({
     queryKey: ["tokenBalance", publicKey?.toBase58()],
@@ -59,84 +60,105 @@ export const TokenBalance = ({
     return () => {
       clearInterval(intervalId);
     };
-  }, [stakedNfts]);
+  }, [stakedNfts, calculatePointsPerSecond]);
 
   const handleClaimToken = async () => {
-    if (!publicKey || tokenBalance <= 0) {
+    if (!publicKey || tokenBalance <= 0 || !signMessage) {
       toast.error("Invalid public key or token balance.");
       return;
     }
+
+    setClaimLoading(true);
+
     try {
-      setClaimLoading(true);
-      const response = await claimToken(publicKey.toBase58(), tokenBalance);
-      if (!response.success) {
-        toast.error(response.message!);
-        throw new Error("Failed to retrieve token claim transaction.");
-      }
+      for (let retryCount = 0; retryCount < MAX_RETRIES; retryCount++) {
+        try {
+          const response = await claimToken(publicKey.toBase58(), tokenBalance);
+          if (!response.success || response.status === 401) {
+            toast.error(response.message! || "Error while claiming token");
 
-      toast.loading(`Claiming ${tokenBalance.toFixed(6)} $DEV`, {
-        id: "tokenClaim",
-      });
+            if (response.status === 401) {
+              await signIn(publicKey, signMessage);
+              continue;
+            }
+            throw new Error("Failed to claim token");
+          }
 
-      const transactionBase64 = response.data?.transaction;
-      const deserializedTransaction = Transaction.from(
-        Buffer.from(JSON.parse(transactionBase64).transaction, "base64"),
-      );
+          toast.loading(`Claiming ${tokenBalance.toFixed(6)} $DEV`, {
+            id: "tokenClaim",
+          });
 
-      const recentBlockhash = await connection.getLatestBlockhash();
+          const transactionBase64 = response.data?.transaction;
+          const deserializedTransaction = Transaction.from(
+            Buffer.from(JSON.parse(transactionBase64).transaction, "base64"),
+          );
 
-      const messageV0 = new TransactionMessage({
-        payerKey: publicKey,
-        recentBlockhash: recentBlockhash.blockhash,
-        instructions: deserializedTransaction.instructions,
-      }).compileToV0Message();
+          const recentBlockhash = await connection.getLatestBlockhash();
 
-      const versionedTransaction = new VersionedTransaction(messageV0);
+          const messageV0 = new TransactionMessage({
+            payerKey: publicKey,
+            recentBlockhash: recentBlockhash.blockhash,
+            instructions: deserializedTransaction.instructions,
+          }).compileToV0Message();
 
-      const simulationResult =
-        await connection.simulateTransaction(versionedTransaction);
-      if (simulationResult.value.err) {
-        throw new Error("Transaction simulation failed.");
-      }
+          const versionedTransaction = new VersionedTransaction(messageV0);
 
-      console.log("Sending transaction...");
-      const signature = await sendTransaction(
-        versionedTransaction,
-        connection,
-        {
-          signers: [authorityKeypair],
-        },
-      );
+          const simulationResult =
+            await connection.simulateTransaction(versionedTransaction);
+          if (simulationResult.value.err) {
+            throw new Error("Transaction simulation failed.");
+          }
 
-      console.log("Awaiting transaction confirmation...");
-      const latestBlockhash = await connection.getLatestBlockhash("finalized");
-      const confirmation = await connection.confirmTransaction(
-        {
-          blockhash: latestBlockhash.blockhash,
-          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-          signature,
-        },
-        "confirmed",
-      );
+          console.log("Sending transaction...");
+          const signature = await sendTransaction(
+            versionedTransaction,
+            connection,
+            {
+              signers: [authorityKeypair],
+            },
+          );
 
-      if (confirmation.value.err) {
-        throw new Error("Transaction confirmation failed.");
-      }
+          console.log("Awaiting transaction confirmation...");
+          const latestBlockhash =
+            await connection.getLatestBlockhash("finalized");
+          const confirmation = await connection.confirmTransaction(
+            {
+              blockhash: latestBlockhash.blockhash,
+              lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+              signature,
+            },
+            "confirmed",
+          );
 
-      const resetResponse = await resetBalance(publicKey.toBase58());
-      if (resetResponse.success) {
-        console.log("Refetching token balance...");
-        setTokenBalance(resetResponse.data?.tokenBalance ?? 0);
-        toast.success(`Successfully claimed ${tokenBalance.toFixed(6)} $DEV`, {
-          id: "tokenClaim",
-        });
-      } else {
-        toast.error("Failed to reset balance.");
+          if (confirmation.value.err) {
+            throw new Error("Transaction confirmation failed.");
+          }
+
+          const resetResponse = await resetBalance(publicKey.toBase58());
+          if (resetResponse.success) {
+            console.log("Refetching token balance...");
+            setTokenBalance(resetResponse.data?.tokenBalance ?? 0);
+            toast.success(
+              `Successfully claimed ${tokenBalance.toFixed(6)} $DEV`,
+              {
+                id: "tokenClaim",
+              },
+            );
+          } else {
+            toast.error("Failed to reset balance.");
+          }
+          break; // Exit the retry loop if successful
+        } catch (error) {
+          if (retryCount >= MAX_RETRIES - 1) {
+            throw error; // Rethrow the error if max retries reached
+          }
+          console.error("Retrying due to error:", error);
+        }
       }
     } catch (error) {
       console.error("Error during token claim:", error);
       toast.error(
-        `${error instanceof Error ? error.message : "Unknown error" || "Unable to complete action."}`,
+        `${error instanceof Error ? error.message : "Unknown error"}`,
         { id: "tokenClaim" },
       );
     } finally {

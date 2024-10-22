@@ -6,6 +6,8 @@ import {
 } from "@/components/ui/accordion";
 import MainButton from "@/components/ui/primary-button";
 import { useGetBalance } from "@/hooks/useGetBalance";
+import { signIn } from "@/lib/utils";
+
 import { Button } from "@/ui/button";
 import {
   Credenza,
@@ -19,14 +21,23 @@ import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { WalletName } from "@solana/wallet-adapter-base";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { BadgeInfo, Check, Copy } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 const WalletsModal = () => {
-  const { select, publicKey, disconnect, connect, wallet, wallets } =
-    useWallet();
+  const {
+    select,
+    publicKey,
+    disconnect,
+    connect,
+    wallet,
+    wallets,
+    signMessage,
+  } = useWallet();
+  const { status } = useSession();
   const [openConnectModal, setOpenConnectModal] = useState(false);
   const [openWalletModal, setOpenWalletModal] = useState(false);
   const { connection } = useConnection();
@@ -66,6 +77,7 @@ const WalletsModal = () => {
 
   const disconnectWallet = useCallback(() => {
     handleWalletAction(disconnect);
+    signOut({ redirect: false });
   }, [disconnect]);
 
   const copyAddress = useCallback(async () => {
@@ -218,7 +230,7 @@ const WalletsModal = () => {
           </div>
           <p className="text-base text-white/50">{balance} SOL</p>
         </div>
-        <div className="max-md:p-4">
+        <div className="flex gap-2 max-md:p-4">
           <Button
             className="w-full border-none bg-primary/45 py-[22px] text-base hover:bg-primary/50"
             onClick={() => {
@@ -229,6 +241,20 @@ const WalletsModal = () => {
           >
             {isLoading ? "Disconnecting..." : "Disconnect Wallet"}
           </Button>
+          {status === "unauthenticated" && (
+            <Button
+              className="w-full border bg-transparent py-[22px] text-base text-white transition-all hover:border-white/60 hover:bg-transparent hover:text-white/80"
+              onClick={async () => {
+                if (signMessage) {
+                  setOpenWalletModal(false);
+                  await signIn(publicKey, signMessage);
+                }
+              }}
+              disabled={isLoading}
+            >
+              {isLoading ? "Disconnecting..." : "Sign Message"}
+            </Button>
+          )}
         </div>
       </CredenzaContent>
     </Credenza>
