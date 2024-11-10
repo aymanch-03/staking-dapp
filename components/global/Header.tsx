@@ -1,5 +1,8 @@
 import dynamic from "next/dynamic";
-const Wallets = dynamic(() => import("./Wallets"), { ssr: false });
+const Wallets = dynamic(
+  () => import("./Wallets").then((mod) => mod.ConnectionModal),
+  { ssr: false },
+);
 
 const Header = () => {
   return (

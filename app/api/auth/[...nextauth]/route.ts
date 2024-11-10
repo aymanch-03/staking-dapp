@@ -9,7 +9,7 @@ declare module "next-auth" {
       id: string;
       user: User;
     } & DefaultSession["user"] &
-    User;
+      User;
   }
 }
 
